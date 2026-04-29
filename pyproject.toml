@@ -91,6 +91,12 @@ files = [
 module = ["bridge.tests.*", "brains_shared.tests.*"]
 disallow_untyped_defs = false
 
+# python-frontmatter ships no py.typed marker (last release 1.1, 2024).
+# Treat its public surface as `Any` rather than retrofitting stubs upstream.
+[[tool.mypy.overrides]]
+module = ["frontmatter", "frontmatter.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 asyncio_mode = "auto"
@@ -101,6 +107,7 @@ asyncio_mode = "auto"
 # set PYTHONPATH the same way (see `scripts/run-bridge.sh`).
 pythonpath = [
     "bridge/src",
+    "bridge/tests",
     "brains/shared/src",
     "brains/clu/src",
     "relays/imessage/src",
