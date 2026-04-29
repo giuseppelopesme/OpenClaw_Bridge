@@ -9,6 +9,9 @@ dependencies = [
     "keyring>=25.5",
     "python-frontmatter>=1.1",
     "httpx>=0.28",
+    "redis>=5.2",
+    # WebSocket transport for the events subscribe route.
+    "websockets>=14.1",
 ]
 
 [build-system]

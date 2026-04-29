@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OpenClaw Redis launchd job.
+
+  NOT auto-installed by Session 4. To load (one-time):
+
+      cp ops/launchd/com.giuseppelopesme.openclaw.redis.plist \
+         ~/Library/LaunchAgents/
+      launchctl load ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.redis.plist
+
+  To unload:
+      launchctl unload ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.redis.plist
+
+  Logs are written to /Users/giuseppelopes/.openclaw/redis.{out,err}.log so
+  Console.app and `tail -f` both work. The wrapper script reads the
+  Keychain password and passes it as --requirepass; we never put the
+  secret in this plist (or in ARGV that other users could see — the
+  password is passed to redis-server as a command-line arg in the
+  wrapper, which on macOS is visible to the same user only).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.giuseppelopesme.openclaw.redis</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/giuseppelopes/Developer/OpenClaw_Bridge/scripts/run-redis.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/giuseppelopes/Developer/OpenClaw_Bridge</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/giuseppelopes/.openclaw/redis.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/giuseppelopes/.openclaw/redis.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>

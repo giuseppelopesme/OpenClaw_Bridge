@@ -34,6 +34,9 @@ dev = [
     "httpx>=0.28",
     "ruff>=0.7",
     "mypy>=1.13",
+    # Hermetic Redis for tests — supports pubsub and the EVAL-based rate
+    # limiter Lua script via the [lua] extra (lupa).
+    "fakeredis[lua]>=2.20",
 ]
 
 [tool.ruff]
