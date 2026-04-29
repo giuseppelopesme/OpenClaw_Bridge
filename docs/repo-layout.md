@@ -8,7 +8,7 @@ last_revised: 2026-04-29
 
 # Repo Layout
 
-Single Git repository: `glysk/openclaw` on private GitHub. Mono-repo with three first-class concerns — bridge, relays, brains — and a shared SDK package consumed by the brains. Local checkout lives at `~/Developer/OpenClaw_Bridge` on the Mac Mini. Do not put the working tree inside iCloud Drive — it produces sync-conflict copies of `uv.lock` and other live files; for cross-machine sync use the GitHub remote.
+Single Git repository: `giuseppelopesme/OpenClaw_Bridge` on private GitHub. Mono-repo with three first-class concerns — bridge, relays, brains — and a shared SDK package consumed by the brains. Local checkout lives at `~/Developer/OpenClaw_Bridge` on the Mac Mini. Do not put the working tree inside iCloud Drive — it produces sync-conflict copies of `uv.lock` and other live files; for cross-machine sync use the GitHub remote.
 
 ## Tree
 
@@ -109,12 +109,12 @@ OpenClaw_Bridge/
 │       └── …
 ├── ops/
 │   ├── launchd/
-│   │   ├── com.glysk.openclaw.bridge.plist
-│   │   ├── com.glysk.openclaw.redis.plist
-│   │   ├── com.glysk.openclaw.relay.clu.plist
-│   │   ├── com.glysk.openclaw.relay.tron.plist
-│   │   ├── com.glysk.openclaw.relay.flynn.plist
-│   │   └── com.glysk.openclaw.brain.clu.plist
+│   │   ├── com.giuseppelopesme.openclaw.bridge.plist
+│   │   ├── com.giuseppelopesme.openclaw.redis.plist
+│   │   ├── com.giuseppelopesme.openclaw.relay.clu.plist
+│   │   ├── com.giuseppelopesme.openclaw.relay.tron.plist
+│   │   ├── com.giuseppelopesme.openclaw.relay.flynn.plist
+│   │   └── com.giuseppelopesme.openclaw.brain.clu.plist
 │   ├── redis/redis.conf
 │   └── install.sh              # bootstraps from a fresh macOS
 ├── scripts/
@@ -127,6 +127,10 @@ OpenClaw_Bridge/
     ├── claw                    # admin CLI (mint tokens, tail events, replay)
     └── claw-tui                # optional curses dashboard
 ```
+
+## Naming convention
+
+The reverse-DNS namespace for everything OpenClaw — Keychain service identifiers, launchd plist labels, anything else macOS expects in this form — is `com.giuseppelopesme.openclaw.<component>`. It matches the GitHub username (`giuseppelopesme`) for visual consistency. OpenClaw is personal infrastructure; it has no organisational owner. Do not introduce alternative namespaces (Glysk OÜ runs on the platform but does not own it).
 
 ## Package boundaries
 
@@ -184,7 +188,7 @@ Every workaround site carries an explicit `# uv 0.11.8 hidden-pth workaround` co
 1. Create `clu`, `tron`, `flynn` users (idempotent)
 2. Install Homebrew, Python 3.13, Redis, `uv`
 3. Clone the repo to `~/Developer/OpenClaw_Bridge`
-4. Generate Redis password and bridge token salt, store in macOS Keychain
+4. Generate Redis password and bridge token salt, store in macOS Keychain under service `com.giuseppelopesme.openclaw.bridge`
 5. Mint initial tokens for each component
 6. Install launchd plists (bridge → redis → relays → brains, in dependency order)
 7. Run health check
@@ -193,11 +197,12 @@ The whole bootstrap should be reproducible end-to-end in under 10 minutes on the
 
 ---
 
-## Changelog — 2026-04-29 (Session 1 deviations)
+## Changelog — 2026-04-29 (Session 1 deviations + namespace cleanup)
 
 Folded into the body above. Listed here for traceability against the original spec.
 
 - **Repo location**: `~/Developer/OpenClaw_Bridge` (was `~/openclaw`). Repo briefly lived inside iCloud Drive and was moved out after sync conflicts created duplicate `uv.lock` copies.
+- **Namespace**: `com.giuseppelopesme.openclaw.*` (was `com.glysk.openclaw.*`). OpenClaw is personal infrastructure with no organisational owner. Affects Keychain service identifier, six launchd plist filenames, and the GitHub repo path (now `giuseppelopesme/OpenClaw_Bridge`).
 - **Boundary enforcement**: `scripts/check-boundaries.sh` (was "ruff + custom rule" — ruff cannot express what the rule actually requires).
 - **Canonical launcher**: `./scripts/run-bridge.sh` (was `uv run uvicorn …`); workaround for the uv 0.11.8 hidden-`.pth` bug. See Operational notes.
 - **`uv run --no-sync` pattern**: required everywhere automation drives uv; same root cause.
