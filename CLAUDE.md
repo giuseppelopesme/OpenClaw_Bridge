@@ -4,7 +4,7 @@ Personal AI agent ecosystem. One bridge, three brains (CLU, TRON, FLYNN), three 
 
 ## Status
 
-Build in progress. Session 1 (skeleton + auth + health) shipped. Session 2 (Keychain + vault provider + idempotency + rate limiter) pending.
+Build in progress. Sessions 1 (skeleton + auth + health) and 2 (Keychain + vault provider + idempotency + rate limiter) shipped. Session 3 (LLM router + telemetry; legacy `tokens.dev.json` cleanup) pending.
 
 ## Architecture in brief
 

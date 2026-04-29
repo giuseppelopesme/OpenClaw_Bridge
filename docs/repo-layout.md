@@ -210,3 +210,16 @@ Folded into the body above. Listed here for traceability against the original sp
 - **Build backend**: `uv_build` (original spec did not pin one).
 - **Tree additions vs original spec**: `bridge/src/bridge/middleware.py`, `bridge/src/bridge/logging_setup.py`, `bridge/src/bridge/__main__.py`, `bridge/src/bridge/routes/auth.py`, `scripts/run-bridge.sh`, `scripts/check-boundaries.sh`. The `ops/scripts/` subfolder is collapsed into top-level `scripts/`.
 - **Tooling additions**: ruff line-length 100 with `ANN`/`BLE`/`T20`; pytest `filterwarnings = ["error"]`.
+
+---
+
+## Changelog — 2026-04-29 (Session 2 deliveries)
+
+Folded into the body above where the change is structural; listed here for traceability.
+
+- **Migrations**: `bridge/src/bridge/migrations/` is a Python package containing `.sql` files and a tiny runner. Apply by prefix (e.g. `apply_migrations(conn, prefix="idempotency")`); a `_migrations` table tracks applied filenames. Telemetry will add `telemetry_*.sql` files to the same package in Session 3.
+- **Providers**: `bridge/src/bridge/providers/vault.py` is the first concrete provider. The provider package layout in the tree above already had `providers/vault.py`; this session populated it.
+- **CLI tools**: `scripts/mint-token.py`, `scripts/rotate-token.py`, `scripts/migrate-tokens-to-keychain.py` are shipped (the first two were placeholders in the original tree; the migration tool is new).
+- **Test helpers**: `bridge/tests/_support.py` shares `TokenFixture` and the in-memory `FakeKeyring`. `bridge/tests` is on the workspace `pythonpath` so test modules can `from _support import ...`.
+- **Env additions**: `BRIDGE_IDEMPOTENCY_DB` (default `~/.openclaw/idempotency.db`). `OBSIDIAN_VAULT` is now wired through `Settings.vault_root`.
+- **Deps**: `keyring>=25.5` (already in CLAUDE.md's locked stack), `python-frontmatter>=1.1` (the only addition beyond the explicit list, flagged in `SESSION-NOTES.md`).

@@ -326,3 +326,30 @@ Same root cause. `BaseHTTPMiddleware`'s anyio-based exception handling short-cir
 ### Integer HTTP status literals are canonical
 
 This document already uses integer status codes (200, 401, 409, etc.). That is intentional and now explicit policy: do **not** use `fastapi.status.HTTP_*_*` constants. Under starlette 1.0 several constants emit deprecation warnings (e.g. `HTTP_422_UNPROCESSABLE_ENTITY` was renamed per RFC 9110). With `filterwarnings = ["error"]` in pytest config, those warnings break test runs. Integer literals are stable and self-documenting.
+
+
+---
+
+## Amendments — 2026-04-29 (Session 2)
+
+These supersede the corresponding parts of the spec above. Reasons documented in the Session 2 entry of `SESSION-NOTES.md`.
+
+### Tokens live in macOS Keychain (Session 1 JSON store deprecated)
+
+Tokens are written to one Keychain item per actor under service `com.giuseppelopesme.openclaw.bridge`. Item password is JSON `{token, previous_token, previous_expires_at, scopes}`. Enumeration is via a manifest entry (`_actors_`) the bridge maintains itself; `keyring` has no portable list-by-service API.
+
+The bridge builds a `sha256(token) → (actor, scopes)` lookup map at startup and refreshes lazily on a 60s TTL. CLI tools that mint or rotate tokens write to Keychain; the running bridge picks up the change within one minute, or immediately on restart.
+
+The `~/.openclaw/tokens.dev.json` fallback path is preserved for one transitional revision: empty Keychain + present JSON file ⇒ bridge reads the JSON and emits a structured `token_store_fallback_to_json` warning. Removed in Session 3 once Keychain is verified in real use.
+
+### `Retry-After` is a real response header on 429
+
+Per the rate-limiting section, exhausted buckets return `429 rate_limited` with `Retry-After` in seconds. As of Session 2 this header is on the response itself; previously it was implied by `details.retry_after_s` only. `details.retry_after_s` remains for callers that prefer the body field.
+
+### Idempotency caches only 2xx responses
+
+The 24h `(key, body_hash) → response` cache only stores successful responses. A 4xx/5xx replay re-executes — error responses are not cached. This is additive to the spec: replays of successful POSTs continue to behave as documented; failed POSTs no longer get a "stuck" replay if the underlying problem self-heals.
+
+### Vault `mode=append` semantics
+
+Append creates the file if missing (per the spec) and inserts a single leading `\n` when the existing file lacks a trailing newline, so consecutive appends do not run together. This is a clarification of the "creates if missing" line, not a change.
