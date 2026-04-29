@@ -1,0 +1,50 @@
+# Install once: `pre-commit install`
+# Run on demand: `pre-commit run --all-files`
+#
+# Hooks reuse the workspace's pinned ruff/mypy via `local` repos with
+# `language: system`, so the version in `uv.lock` is the version that runs —
+# no drift between local hooks and CI. `--no-sync` keeps uv from re-doing
+# the editable install mid-hook (see SESSION-NOTES.md).
+
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --no-sync ruff check
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --no-sync ruff format --check
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: mypy-strict
+        name: mypy --strict (bridge + brains/shared)
+        entry: uv run --no-sync mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: package-boundaries
+        name: package-boundary check
+        entry: scripts/check-boundaries.sh
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: pytest
+        name: pytest (full suite)
+        entry: uv run --no-sync pytest
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]  # only run on push, not every commit
