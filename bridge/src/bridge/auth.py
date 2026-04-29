@@ -16,27 +16,21 @@ bridge is running in another process.
 
 Operationally: `set/rotate token` → notify bridge (e.g. via a future
 `POST /v1/admin/refresh-tokens` endpoint, or process restart) → updated map.
-For Session 2 the 60s TTL is the only refresh path for a long-running bridge.
 
-### Legacy JSON fallback (transitional)
+### Removed in Session 3
 
-If Keychain enumeration returns zero credentials AND
-`~/.openclaw/tokens.dev.json` exists, the bridge falls back to the JSON file and
-emits a structured warning log. This avoids bricking dev environments that have
-not yet migrated. The fallback goes away in Session 3 once Keychain is verified
-in real use; remove the `_load_from_json_fallback` block, the warning log, and
-the `BRIDGE_TOKEN_STORE` config field together.
+The Session 1/2 transitional `~/.openclaw/tokens.dev.json` fallback was removed
+in Session 3 — Keychain is the only token source. To populate Keychain on a
+fresh host: `scripts/mint-token.py --actor <id> --scopes <a,b,c>`.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -67,32 +61,27 @@ class TokenStore:
     Build the map on first lookup (and on `refresh()`); cache for
     `REFRESH_TTL_SECONDS`. The cache is refreshed transparently on the next
     lookup after the TTL elapses.
-
-    `fallback_path` is the legacy `~/.openclaw/tokens.dev.json` location.
-    Used only when Keychain enumeration returns zero credentials.
     """
 
-    def __init__(self, fallback_path: Path | None = None) -> None:
-        self._fallback_path = fallback_path
+    def __init__(self) -> None:
         self._records: dict[str, TokenRecord] = {}
         self._loaded_at: float | None = None
 
     def refresh(self) -> None:
-        """Force-rebuild the in-memory map from Keychain (or JSON fallback)."""
+        """Force-rebuild the in-memory map from Keychain.
+
+        Provider-style entries (account `provider.<name>`) are skipped — they
+        store API keys for downstream services (OpenRouter, etc.) that do not
+        authenticate inbound bridge requests.
+        """
         records: dict[str, TokenRecord] = {}
-        creds = keychain.list_credentials()
-        if creds:
-            for cred in creds:
-                self._index(records, cred.token, cred.actor, cred.scopes)
-                if cred.previous_is_active():
-                    assert cred.previous_token is not None  # for type-checker
-                    self._index(records, cred.previous_token, cred.actor, cred.scopes)
-        elif self._fallback_path is not None and self._fallback_path.exists():
-            logger.warning(
-                "token_store_fallback_to_json",
-                extra={"path": str(self._fallback_path)},
-            )
-            self._load_from_json_fallback(records, self._fallback_path)
+        for cred in keychain.list_credentials():
+            if cred.actor.startswith("provider."):
+                continue
+            self._index(records, cred.token, cred.actor, cred.scopes)
+            if cred.previous_is_active():
+                assert cred.previous_token is not None  # for type-checker
+                self._index(records, cred.previous_token, cred.actor, cred.scopes)
         self._records = records
         self._loaded_at = time.monotonic()
 
@@ -105,26 +94,6 @@ class TokenStore:
     ) -> None:
         digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
         records[digest] = TokenRecord(actor=actor, scopes=frozenset(scopes))
-
-    @staticmethod
-    def _load_from_json_fallback(records: dict[str, TokenRecord], path: Path) -> None:
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return
-        if not isinstance(raw, dict):
-            return
-        for digest, body in raw.items():
-            if not isinstance(digest, str) or not isinstance(body, dict):
-                continue
-            actor = body.get("actor")
-            scopes = body.get("scopes")
-            if not isinstance(actor, str) or not isinstance(scopes, list):
-                continue
-            records[digest] = TokenRecord(
-                actor=actor,
-                scopes=frozenset(s for s in scopes if isinstance(s, str)),
-            )
 
     def lookup(self, token: str) -> TokenRecord | None:
         if self._loaded_at is None or time.monotonic() - self._loaded_at > REFRESH_TTL_SECONDS:

@@ -491,3 +491,251 @@ Step 3 of the build order: LLM router + OpenRouter provider +
 telemetry schema (`telemetry_*.sql`); add a second prefix when you wire
 it. Also pick up the JSON-fallback removal once Keychain is verified in
 real use, per the checklist above.
+
+
+---
+
+# Session 3 — LLM router, OpenRouter, /v1/llm/complete, telemetry, /v1/health, JSON-fallback removal
+
+Date: 2026-04-29
+
+## What landed
+
+Step 3 of the locked build order, plus the JSON-fallback removal that
+Session 2 staged. All six workstreams from the Session 3 prompt complete;
+`uv run --no-sync pytest` is green at 110 passed / 1 skipped (the opt-in
+real-Keychain test); ruff, mypy, boundary script all clean. Manual
+verification against a real OpenRouter key captured below.
+
+### LLM provider abstraction
+
+- `bridge/src/bridge/providers/llm/base.py` — provider-agnostic
+  dataclasses (`LLMRequest`, `LLMResponse`, `LLMUsage`, `LLMMessage`) plus
+  the `LLMProvider` Protocol. Shapes mirror `docs/api-contract.md` so the
+  route hands them to the provider without translation. Every provider
+  also exposes `healthcheck() -> "ok"|"degraded"|"down"` for `/v1/health`.
+- `bridge/src/bridge/providers/llm/pricing.py` — hardcoded USD-per-1M
+  table for both the friendly model ids (`anthropic/claude-haiku-4.5`)
+  and the dated ids OpenRouter actually echoes back
+  (`anthropic/claude-4.5-haiku-20251001`). `compute_cost_usd()` returns
+  the response field; unknown models → `0.0`. Refresh is a manual edit
+  per the docstring.
+- `bridge/src/bridge/providers/llm/openrouter.py` — `OpenRouterProvider`
+  wraps a shared `httpx.AsyncClient` (lifecycled by `main.create_app`).
+  API key from Keychain `provider.openrouter` (the `token` field of the
+  same JSON schema actor tokens use; `scopes` is empty, rotation fields
+  unused). Auth.py's `TokenStore.refresh` skips `provider.*` actors so
+  these never end up in the bearer-token map.
+- `bridge/src/bridge/providers/llm/router.py` — `LLMRouter` selects
+  per `task_class` and `provider_hint`. Local provider slot is wired but
+  always None in Session 3; under `auto`, missing local falls through to
+  openrouter; explicit `local` raises `dependency_unavailable`. TODO
+  comment marks the swap point.
+
+### POST /v1/llm/complete
+
+- `bridge/src/bridge/routes/llm.py` — scope `llm:call` + rate-limited via
+  `require_rate("llm:call")` (default 60 req/min, burst 10). Pydantic
+  request model validates `task_class`, `provider_hint`, message length,
+  `max_tokens` (1..32_000), `temperature` (0..2), `response_format`.
+  Response shape verbatim from the spec.
+- Telemetry: `BackgroundTasks` schedules a write *after* the response is
+  sent on the success path; the failure path writes inline (Starlette
+  doesn't run background tasks attached to an exception path). Either
+  way `write_llm_call` is the single entry point, sqlite errors are
+  swallowed.
+
+### Telemetry + access log
+
+- `bridge/src/bridge/telemetry.py` — `LLMCallRecord` dataclass and
+  `write_llm_call(conn, record)` for the LLM table. `setup_access_log(path)`
+  attaches a `TimedRotatingFileHandler` to the `bridge.access` logger:
+  daily rotation at midnight, 30-day retention, JSONL formatter that
+  mirrors `docs/telemetry-plan.md`. `propagate=False` on the access logger
+  so production lines don't double-emit through the stderr path.
+- `bridge/src/bridge/migrations/telemetry_0001_init.sql` — schema for
+  `llm_calls` per the telemetry plan, plus indexes on `timestamp`,
+  `task_class`, `actor`. Applied on startup via the same migrations
+  package Session 2 set up.
+- The setup function is *not* called from `create_app` — only from
+  `bridge.__main__`. Tests assert the JSONL behaviour directly via the
+  helper without writing a daily-rotated file from the test suite.
+
+### /v1/health real deps map
+
+- `bridge/src/bridge/routes/health.py` rewritten:
+  - Real probes for `keychain` (calls `keyring.get_password` for the
+    manifest), `vault` (root exists + listable), `idempotency_db`,
+    `telemetry_db` (both `SELECT 1`), `openrouter` (cheap `GET /models`
+    with 2s timeout).
+  - Stubs preserved for `redis`, `apple_bridge`, `imap_*` (their providers
+    ship in steps 4–6).
+  - Critical-dep set: `keychain`, `vault`, `idempotency_db`, `telemetry_db`.
+    `openrouter` is non-critical (the LLM endpoint owns its own errors;
+    health shouldn't flap when OpenRouter is slow).
+  - Concurrent execution via `asyncio.gather` for the async checks.
+
+### JSON-fallback removal
+
+Per the Session 2 checklist:
+
+- `auth.py` — dropped `_load_from_json_fallback` and the warning log;
+  `TokenStore` no longer takes `fallback_path`. Now reads exclusively
+  from Keychain.
+- `config.py` — dropped `token_store_path`; added `telemetry_db_path`
+  and `access_log_path`.
+- `.env.example` — dropped `BRIDGE_TOKEN_STORE`; added a reminder that
+  tokens live in Keychain only.
+- Deleted `bridge/tests/unit/test_auth_legacy_fallback.py`.
+- Deleted `scripts/migrate-tokens-to-keychain.py` (per Session 2's note,
+  it could not recover plaintext from the digest-keyed JSON store and
+  was therefore a hazard for users assuming it solved the cut-over;
+  the real path is per-actor `mint-token.py` / `rotate-token.py`).
+- `grep -rn 'tokens.dev.json|fallback_path|BRIDGE_TOKEN_STORE'` confirms
+  remaining references are historical (Session 1/2 entries in this very
+  notes file — intentional record).
+
+### Decision: how to handle the local provider stub
+
+Locked: the `local` slot in `LLMRouter.__init__` accepts an optional
+provider argument; Session 3 wires it to `None`. Under `auto`, missing
+local just falls through to openrouter. Under explicit `local`, missing
+local raises `dependency_unavailable`. **No config flag** — the absence
+of an installed provider is the off-switch. When Session 4+ adds a real
+local provider it gets injected at app construction, no router changes
+needed. Tested via `test_llm_router.py`.
+
+### Decision: timeouts fold into 502 rather than 504
+
+Locked: per the prompt, OpenRouter timeouts and HTTP errors both raise
+`DependencyUnavailable` (502). The exception's `details` carries
+`timeout: bool` and `upstream_status: int | null` so callers (and the
+telemetry writer) can distinguish. This avoids a v1.x bump on the error
+catalogue and keeps the envelope stable.
+
+### Decision: pricing-table dated aliases
+
+Found during manual verification: requesting
+`anthropic/claude-haiku-4.5` made OpenRouter respond with
+`anthropic/claude-4.5-haiku-20251001` in the `model` field. `cost_usd`
+is computed from the *response* model id, so the friendly id alone
+yielded `0.0`. Fixed by listing both the friendly id and the dated alias
+in `_PRICES`. Same for sonnet and opus. Refresh policy unchanged
+(manual). Catalogued as a real-world finding in the pricing module
+docstring.
+
+## Verification
+
+```bash
+uv sync --group dev                                          # 46 packages locked
+uv run --no-sync pytest -q                                   # 110 passed, 1 skipped
+uv run --no-sync ruff check .                                # all checks passed
+uv run --no-sync ruff format --check .                       # 46 files already formatted
+uv run --no-sync mypy                                        # success: no issues found in 26 source files
+bash scripts/check-boundaries.sh                             # OK
+./scripts/run-bridge.sh                                      # serves all endpoints
+```
+
+### Manual walkthrough (real OpenRouter call)
+
+```bash
+# 1. Install the OpenRouter API key (provider.openrouter actor).
+python -c 'from bridge import keychain; keychain.set_credential(
+    "provider.openrouter", "<sk-or-v1-...>", [])'
+
+# 2. Mint a bridge token with llm:call scope.
+uv run --no-sync python scripts/mint-token.py \
+    --actor cli.giuseppelopes \
+    --scopes llm:call,vault:read,vault:write
+
+# 3. Boot the bridge with the real Obsidian vault.
+export OBSIDIAN_VAULT="/Users/giuseppelopes/Library/Mobile Documents/iCloud~md~obsidian/Documents/GiuseppeLopes"
+./scripts/run-bridge.sh &
+
+# 4. Health — every dep "ok" including a live OpenRouter probe.
+curl http://127.0.0.1:8788/v1/health | jq
+# {
+#   "status": "ok",
+#   "deps": { "openrouter": "ok", "keychain": "ok", "vault": "ok",
+#             "idempotency_db": "ok", "telemetry_db": "ok", ... }
+# }
+
+# 5. Real LLM call.
+TOKEN=<bridge token from step 2>
+curl -X POST http://127.0.0.1:8788/v1/llm/complete \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "task_class":"triage",
+      "messages":[{"role":"user","content":"What is 2+2?"}],
+      "max_tokens":20, "temperature":0
+    }' | jq
+# {
+#   "provider":"openrouter",
+#   "model":"anthropic/claude-4.5-haiku-20251001",
+#   "content":"2 + 2 = 4",
+#   "usage":{"prompt_tokens":14,"completion_tokens":13,"cost_usd":7.9e-05},
+#   "latency_ms":2209
+# }
+
+# 6. Inspect the telemetry row.
+sqlite3 -header -column ~/.openclaw/telemetry.db \
+    "SELECT actor, task_class, model, prompt_tokens, completion_tokens, \
+     cost_usd, latency_ms, status FROM llm_calls ORDER BY timestamp"
+# cli.giuseppelopes  triage  anthropic/claude-4.5-haiku-20251001  14  13  7.9e-05  2209  success
+
+# 7. Synthetic-fault check on /v1/health.
+OBSIDIAN_VAULT=/tmp/this-vault-does-not-exist ./scripts/run-bridge.sh &
+curl http://127.0.0.1:8788/v1/health | jq
+# { "status": "down", "deps": { "vault": "down", "openrouter": "ok", ... } }
+# Critical-dep rule applied as expected.
+
+# 8. Access log JSONL is being written.
+cat ~/.openclaw/access.log | head -5
+# {"ts":"...","request_id":"...","method":"POST","path":"/v1/llm/complete",
+#  "status":200,"duration_ms":2224,"actor":"cli.giuseppelopes"}
+```
+
+All steps observed live during this session.
+
+## Security note (Session 3 only)
+
+The OpenRouter API key used for the manual walkthrough was pasted in
+chat by the operator. The key has been written to Keychain under
+`provider.openrouter` and is not present anywhere on disk in plaintext.
+**However, the chat transcript contains it**, so the key should be
+rotated on the OpenRouter dashboard before the bridge is exposed beyond
+this dev box. After rotation, re-run step 1 of the walkthrough above
+with the new key.
+
+## Known issues / TODO for next session
+
+1. **uv 0.11.x editable-install workaround still in force.** No change
+   vs. Session 1/2; tracked there. Remove when uv ships a fix.
+2. **Cost telemetry has model-id sensitivity.** Pricing table needs a
+   manual update whenever OpenRouter introduces a new dated alias.
+   Mitigated by listing known aliases; long-term consider a fallback
+   that prefix-matches against the family (`anthropic/claude-4.5-haiku-*`).
+3. **No vault.changed Redis publish.** Step 4.
+4. **Rate limiter is in-process.** Step 4.
+5. **Background-task vs inline writes for telemetry.** Success path uses
+   FastAPI BackgroundTasks (runs after response, deterministic in
+   tests); failure path writes inline (BackgroundTasks aren't run on
+   exception paths). The asymmetry is documented in the route handler.
+   If we ever need fully-async writes, swap to a queue + worker; that's
+   step-4 territory once Redis is in.
+
+## What Session 4 should pick up
+
+Step 4 of the build order: Redis event bus + `events:publish` /
+`events:subscribe` (WebSocket). Two natural follow-ups land at the same
+time:
+
+- Real `vault.changed` publish (currently a `bridge.vault` log line in
+  the route handler — TODO comment marks the spot).
+- Redis-backed rate limiter (the `RateLimiter` interface in
+  `bridge.ratelimit` survives the swap; only the storage layer changes).
+
+Bring up local Redis on `127.0.0.1:6379` per `docs/event-bus.md` first;
+`requirepass` lives under Keychain `provider.redis` (same JSON schema as
+OpenRouter). Add the `redis` real probe to `/v1/health` once it's wired.

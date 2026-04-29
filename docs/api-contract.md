@@ -353,3 +353,46 @@ The 24h `(key, body_hash) → response` cache only stores successful responses. 
 ### Vault `mode=append` semantics
 
 Append creates the file if missing (per the spec) and inserts a single leading `\n` when the existing file lacks a trailing newline, so consecutive appends do not run together. This is a clarification of the "creates if missing" line, not a change.
+
+
+---
+
+## Amendments — 2026-04-29 (Session 3)
+
+These supersede the corresponding parts of the spec above. Reasons documented in the Session 3 entry of `SESSION-NOTES.md`.
+
+### `/v1/health` deps map gains real probes
+
+The `deps` object listed in the original endpoint catalogue is additive: the original keys (`redis`, `apple_bridge`, `imap_glysk`, `imap_lopes`, `imap_whilesum`, `openrouter`) are unchanged, and Session 3 adds four real-probe keys:
+
+- `keychain` — calls into macOS Keychain through the same wrapper the bridge uses for tokens
+- `vault` — `OBSIDIAN_VAULT` exists, is a directory, is listable
+- `idempotency_db` — `SELECT 1` against the SQLite file
+- `telemetry_db` — same against `telemetry.db`
+
+`openrouter` is now a live probe (`GET /api/v1/models`, 2s timeout) instead of a stub.
+
+Criticality: a critical dep being `degraded` or `down` propagates to the overall `status`. Critical = `keychain`, `vault`, `idempotency_db`, `telemetry_db`. `openrouter` and the still-stubbed keys are non-critical (the LLM endpoint owns its own errors; health shouldn't flap on a slow OpenRouter).
+
+### LLM error responses fold timeouts into 502
+
+OpenRouter HTTP errors and timeouts both surface as `502 dependency_unavailable`. The error envelope's `details` field carries:
+
+- `timeout: bool` — `true` for read/connect timeouts, `false` for HTTP errors
+- `upstream_status: int | null` — the upstream HTTP status when present, `null` for transport-layer failures
+- `latency_ms: int` — measured at the bridge
+- `model: string` — the model the bridge attempted
+
+This avoids introducing a separate `504` status code (which would be a v1.x bump on the error catalogue).
+
+### LLM cost is a snapshot at recording time
+
+`usage.cost_usd` in the response and the `cost_usd` column in `telemetry.db` are computed from a hardcoded price table at recording time. The telemetry plan calls for refresh on manual cadence; historical rows are not backfilled when the table changes. Unknown models record `cost_usd=0.0`.
+
+### LLM telemetry write asymmetry
+
+Successful `POST /v1/llm/complete` calls write the telemetry row via FastAPI `BackgroundTasks` (after the response is sent). Failed calls write inline before the exception propagates, because Starlette skips `BackgroundTasks` attached to exception paths. Both paths use the same `write_llm_call(conn, record)` and the same swallow-on-error policy. Caller-observable behaviour (response timing, body, headers) is unchanged.
+
+### Token store is Keychain-only
+
+The `~/.openclaw/tokens.dev.json` fallback documented in the Session 2 amendments was removed in Session 3. Tokens live exclusively in macOS Keychain under service `com.giuseppelopesme.openclaw.bridge`. Mint with `scripts/mint-token.py` on a fresh host. The `BRIDGE_TOKEN_STORE` env var is gone.

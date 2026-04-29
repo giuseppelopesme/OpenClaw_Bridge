@@ -50,3 +50,5 @@ docs/openapi-v1.yaml
 
 # Claude Code local settings (per-machine; share .claude/settings.json instead)
 .claude/settings.local.json
+# Claude Code worktrees — local scratch dirs, never tracked.
+.claude/worktrees/
