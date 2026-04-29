@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# uv
+# (uv.lock is committed; site-packages are not)
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Bridge runtime artefacts (live under ~/.openclaw/, but ignore if accidentally written here)
+.openclaw/
+telemetry.db
+telemetry.db-journal
+access.log
+access.log.*
+tokens.dev.json
+
+# Generated docs
+docs/openapi-v1.yaml
+
+# Claude Code local settings (per-machine; share .claude/settings.json instead)
+.claude/settings.local.json
