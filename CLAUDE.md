@@ -4,7 +4,7 @@ Personal AI agent ecosystem. One bridge, three brains (CLU, TRON, FLYNN), three 
 
 ## Status
 
-Build in progress. Sessions 1 (skeleton + auth + health) and 2 (Keychain + vault provider + idempotency + rate limiter) shipped. Session 3 (LLM router + telemetry; legacy `tokens.dev.json` cleanup) pending.
+Build in progress. Sessions 1–3 shipped. Session 4 (Redis event bus + `events:publish` / `events:subscribe`; Redis-backed rate limiter; real `vault.changed` publish) pending.
 
 ## Architecture in brief
 
@@ -84,7 +84,6 @@ The bridge is useful at step 4. CLU is end-to-end at step 9. TRON and FLYNN come
 - Touching anything under `06 - Archive/` in the vault
 - Modifying or installing launchd plists for the first time
 - Storing real secrets anywhere outside macOS Keychain
-- Removing the `~/.openclaw/tokens.dev.json` fallback before Session 2 ships Keychain end-to-end
 
 ## Working principles
 

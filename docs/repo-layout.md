@@ -223,3 +223,15 @@ Folded into the body above where the change is structural; listed here for trace
 - **Test helpers**: `bridge/tests/_support.py` shares `TokenFixture` and the in-memory `FakeKeyring`. `bridge/tests` is on the workspace `pythonpath` so test modules can `from _support import ...`.
 - **Env additions**: `BRIDGE_IDEMPOTENCY_DB` (default `~/.openclaw/idempotency.db`). `OBSIDIAN_VAULT` is now wired through `Settings.vault_root`.
 - **Deps**: `keyring>=25.5` (already in CLAUDE.md's locked stack), `python-frontmatter>=1.1` (the only addition beyond the explicit list, flagged in `SESSION-NOTES.md`).
+
+---
+
+## Changelog — 2026-04-29 (Session 3 deliveries)
+
+- **LLM provider package**: `bridge/src/bridge/providers/llm/{base,openrouter,router,pricing}.py`. Hardcoded pricing table with both friendly and dated OpenRouter model ids; refresh policy documented inline.
+- **Telemetry**: `bridge/src/bridge/telemetry.py` writes the `llm_calls` table and configures a `TimedRotatingFileHandler` for the JSONL access log. Schema in `bridge/src/bridge/migrations/telemetry_0001_init.sql`, applied on startup via the existing migration runner.
+- **Routes**: `bridge/src/bridge/routes/llm.py` (POST `/v1/llm/complete`); `routes/health.py` rewritten for real per-dep probes.
+- **App wiring**: shared `httpx.AsyncClient` lifecycled by `main.create_app` and shared between the OpenRouter provider and the (future) other providers; closed on shutdown alongside the SQLite connections.
+- **Removed**: `~/.openclaw/tokens.dev.json` fallback path in `auth.py`, the `token_store_path` field on `Settings`, the `BRIDGE_TOKEN_STORE` env var, `bridge/tests/unit/test_auth_legacy_fallback.py`, and `scripts/migrate-tokens-to-keychain.py` (per Session 2's documented limitation: it could not recover plaintext from the digest-keyed JSON store).
+- **Env additions**: `BRIDGE_TELEMETRY_DB` (default `~/.openclaw/telemetry.db`), `BRIDGE_ACCESS_LOG` (default `~/.openclaw/access.log`).
+- **Deps**: `httpx>=0.28` promoted from the dev group to a runtime bridge dep (it was already present for the FastAPI test client).
