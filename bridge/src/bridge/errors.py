@@ -30,10 +30,19 @@ class BridgeError(Exception):
     # to starlette/FastAPI status names (e.g. 422 was renamed in RFC 9110).
     http_status: int = 500
 
-    def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.details: dict[str, Any] = details or {}
+        # Optional response headers (e.g. Retry-After on RateLimited).
+        # Stamped onto the JSONResponse in the handler.
+        self.headers: dict[str, str] = headers or {}
 
 
 class BadRequest(BridgeError):
@@ -139,6 +148,7 @@ async def bridge_error_handler(request: Request, exc: Exception) -> JSONResponse
     return JSONResponse(
         status_code=exc.http_status,
         content=envelope(exc.code, exc.message, _request_id(request), exc.details),
+        headers=exc.headers or None,
     )
 
 

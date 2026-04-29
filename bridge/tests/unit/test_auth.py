@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
-import os
-import time
-from pathlib import Path
-from typing import Any
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from bridge.auth import AuthContext, require_scope
-from bridge.config import Settings
+from _support import TokenFixture
+from bridge.auth import AuthContext, TokenStore, require_scope
 from bridge.errors import ForbiddenScope, Unauthorized
-from bridge.main import create_app
 from fastapi.testclient import TestClient
+
+from bridge import auth as auth_module
+from bridge import keychain
 
 
 def test_protected_endpoint_returns_401_envelope_without_token(client: TestClient) -> None:
@@ -45,10 +42,9 @@ def test_protected_endpoint_returns_401_for_malformed_header(client: TestClient)
 
 def test_protected_endpoint_returns_200_with_valid_token(
     client: TestClient,
-    tokens: tuple[Path, list[Any]],
+    tokens: list[TokenFixture],
 ) -> None:
-    _, fixtures = tokens
-    good = next(f for f in fixtures if f.actor == "brain.clu")
+    good = next(f for f in tokens if f.actor == "brain.clu")
     resp = client.get(
         "/v1/auth/whoami",
         headers={"Authorization": f"Bearer {good.plain}"},
@@ -74,38 +70,94 @@ def test_require_scope_passes_when_scope_present() -> None:
     assert result is auth
 
 
-def test_token_store_hot_reloads_on_mtime_change(tokens: tuple[Path, list[Any]]) -> None:
-    """Adding a new token to the file should be picked up without a restart."""
-    path, _ = tokens
-    settings = Settings(
-        host="127.0.0.1",
-        port=8788,
-        log_level="info",
-        token_store_path=path,
+def test_token_store_picks_up_new_keychain_entry_after_refresh(
+    client: TestClient,
+) -> None:
+    """A token added to Keychain after startup is honoured after refresh()."""
+    keychain.set_credential("cli.rotated", "new-rotated-token", ["admin"])
+    # Bridge's TokenStore caches for 60s; force a refresh as the CLI tools do.
+    store: TokenStore = client.app.state.token_store  # type: ignore[attr-defined]
+    store.refresh()
+
+    resp = client.get(
+        "/v1/auth/whoami",
+        headers={"Authorization": "Bearer new-rotated-token"},
     )
-    app = create_app(settings)
-    with TestClient(app) as c:
-        # Initial state: dev-token-clu works.
-        r1 = c.get("/v1/auth/whoami", headers={"Authorization": "Bearer dev-token-clu"})
-        assert r1.status_code == 200
+    assert resp.status_code == 200
+    assert resp.json()["actor"] == "cli.rotated"
 
-        # Append a new token, bump mtime, and verify the bridge sees it.
-        existing = json.loads(path.read_text())
-        existing[hashlib.sha256(b"new-rotated-token").hexdigest()] = {
-            "actor": "cli.rotated",
-            "scopes": ["admin"],
-        }
-        path.write_text(json.dumps(existing))
-        # Force a distinct mtime — same-second writes on macOS may collide.
-        future = time.time() + 1
-        os.utime(path, (future, future))
 
-        r2 = c.get(
-            "/v1/auth/whoami",
-            headers={"Authorization": "Bearer new-rotated-token"},
-        )
-        assert r2.status_code == 200
-        assert r2.json()["actor"] == "cli.rotated"
+def test_token_store_refreshes_after_ttl_elapses(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After REFRESH_TTL_SECONDS, the store transparently rebuilds on lookup."""
+    store: TokenStore = client.app.state.token_store  # type: ignore[attr-defined]
+    # Add a new credential after startup.
+    keychain.set_credential("cli.delayed", "delayed-token", ["admin"])
+
+    # Within TTL: not yet visible.
+    resp_before = client.get(
+        "/v1/auth/whoami",
+        headers={"Authorization": "Bearer delayed-token"},
+    )
+    assert resp_before.status_code == 401
+
+    # Force time forward past the TTL; lookup should rebuild and find it.
+    fake_now = [10_000.0 + auth_module.REFRESH_TTL_SECONDS + 5]
+    monkeypatch.setattr(auth_module.time, "monotonic", lambda: fake_now[0])
+    # Reset the loaded_at to 10_000 so elapsed > TTL.
+    store._loaded_at = 10_000.0  # noqa: SLF001 — direct cache poke for the test
+
+    resp_after = client.get(
+        "/v1/auth/whoami",
+        headers={"Authorization": "Bearer delayed-token"},
+    )
+    assert resp_after.status_code == 200
+    assert resp_after.json()["actor"] == "cli.delayed"
+
+
+def test_rotation_grace_token_still_valid(client: TestClient) -> None:
+    """During the grace window, the previous token still authenticates."""
+    keychain.set_credential(
+        "cli.rotator",
+        "token-new",
+        ["admin"],
+        previous_token="token-old",
+        previous_expires_at=datetime.now(UTC) + timedelta(hours=24),
+    )
+    store: TokenStore = client.app.state.token_store  # type: ignore[attr-defined]
+    store.refresh()
+
+    new = client.get(
+        "/v1/auth/whoami",
+        headers={"Authorization": "Bearer token-new"},
+    )
+    old = client.get(
+        "/v1/auth/whoami",
+        headers={"Authorization": "Bearer token-old"},
+    )
+    assert new.status_code == 200
+    assert old.status_code == 200
+    assert new.json()["actor"] == "cli.rotator"
+    assert old.json()["actor"] == "cli.rotator"
+
+
+def test_rotation_grace_token_expires(client: TestClient) -> None:
+    keychain.set_credential(
+        "cli.rotator",
+        "token-new",
+        ["admin"],
+        previous_token="token-old",
+        previous_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    store: TokenStore = client.app.state.token_store  # type: ignore[attr-defined]
+    store.refresh()
+
+    new = client.get("/v1/auth/whoami", headers={"Authorization": "Bearer token-new"})
+    old = client.get("/v1/auth/whoami", headers={"Authorization": "Bearer token-old"})
+    assert new.status_code == 200
+    assert old.status_code == 401
 
 
 def test_unauthorized_dataclass_carries_message() -> None:
