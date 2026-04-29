@@ -57,8 +57,10 @@ envelope, request-id propagation, structured JSON logging, tests, CI, pre-commit
   including `ANN`, `BLE`, `T20`), `[tool.mypy]` (strict; `bridge/src` and
   `brains/shared/src`), `[tool.pytest.ini_options]` (asyncio auto, `filterwarnings = ["error"]`).
 - `.pre-commit-config.yaml` — ruff check, ruff format check, mypy, boundary
-  check on every commit; pytest on push.
-- `.github/workflows/ci.yml` — ruff + ruff format + mypy + boundary script + pytest.
+  check on every commit; pytest on push. All hooks invoke `uv run --no-sync`
+  to keep the venv stable between runs (see "uv editable-install workaround").
+- `.github/workflows/ci.yml` — `uv sync --group dev` once, then
+  `uv run --no-sync` for ruff, ruff-format, mypy, the boundary script, and pytest.
 - `scripts/check-boundaries.sh` — grep-based enforcement of the package
   boundaries spelled out in `docs/repo-layout.md`. Replaces the hand-wavey
   ruff banned-api rule the spec mentions; ruff cannot express directory-scoped
@@ -69,18 +71,21 @@ envelope, request-id propagation, structured JSON logging, tests, CI, pre-commit
 ## Verification
 
 ```bash
-uv sync --group dev               # 31 packages, all from the locked stack
-uv run pytest -q                  # 29 passed
-uv run ruff check .               # all checks passed
-uv run ruff format --check .      # 19 files already formatted
-uv run mypy                       # success: no issues found in 12 source files
-bash scripts/check-boundaries.sh  # OK
-./scripts/run-bridge.sh           # serves /v1/health on 127.0.0.1:8788 with JSON logs
+uv sync --group dev                         # 31 packages, all from the locked stack
+uv run --no-sync pytest -q                  # 29 passed
+uv run --no-sync ruff check .               # all checks passed
+uv run --no-sync ruff format --check .      # 19 files already formatted
+uv run --no-sync mypy                       # success: no issues found in 12 source files
+bash scripts/check-boundaries.sh            # OK
+./scripts/run-bridge.sh                     # serves /v1/health on 127.0.0.1:8788 with JSON logs
 ```
 
-The DoD command `uv run uvicorn bridge.main:app --port 8788` works too; the
-canonical production command is `./scripts/run-bridge.sh` because it sets
-`PYTHONPATH` (workaround) and turns on JSON logging.
+The DoD command `uv run uvicorn bridge.main:app --port 8788` works after the
+initial `uv sync --group dev`, but only intermittently: uv 0.11.x re-runs
+the editable install on every `uv run` and the resulting `.pth` state is
+non-deterministic on macOS (see below). The canonical, reliable production
+command is `./scripts/run-bridge.sh` — it sets `PYTHONPATH` explicitly,
+passes `--no-sync` so uv does not re-install, and turns on JSON logging.
 
 ## Design notes & deviations from the spec
 
@@ -112,25 +117,39 @@ under starlette 1.0 (RFC 9110 renamed it to "Unprocessable Content"). With
 use plain integer literals (matching `docs/api-contract.md` exactly) to avoid
 coupling to starlette/FastAPI status-name churn.
 
-### `pytest pythonpath` workaround for editable installs
+### uv editable-install workaround
 
-`uv` 0.11.8 generates editable workspace `.pth` files with the macOS
+uv 0.11.8 generates editable workspace `.pth` files with the macOS
 `UF_HIDDEN` flag set. Python 3.13's `site.py` skips hidden `.pth` files
 (check is `st.st_flags & stat.UF_HIDDEN` in `site.addpackage`). Net effect:
 workspace packages are not on `sys.path` in the venv, so `import bridge`
 falls back to a namespace package rooted at the repo (which is wrong) or
-fails entirely.
+fails outright.
 
-`chflags nohidden` works once but uv re-applies the flag on every `uv run`.
-We side-step the whole thing:
+`chflags nohidden` clears the flag, but uv re-applies it on every `uv run`
+that re-syncs. Worse, repeated `uv run` cycles can leave the venv partially
+broken (pytest / mypy entry points failing to import their packages),
+because uv re-links workspace members non-atomically. We side-step the
+whole thing with two complementary moves:
 
-- Tests: `[tool.pytest.ini_options].pythonpath` puts each `src/` on the path.
-- Production: `scripts/run-bridge.sh` exports `PYTHONPATH` before exec'ing.
+1. **Skip re-sync on every invocation.** `uv run --no-sync` is the standard
+   form everywhere we drive uv from automation: pre-commit hooks, CI steps,
+   and `scripts/run-bridge.sh`. The pattern is `uv sync --group dev` once
+   (CI step, fresh dev checkout) and `uv run --no-sync ...` for everything
+   that follows.
+2. **Make `sys.path` explicit where uv's `.pth` is unreliable.**
+   - Tests: `[tool.pytest.ini_options].pythonpath` puts each workspace
+     `src/` directory on the path regardless of `.pth` state.
+   - Production: `scripts/run-bridge.sh` exports `PYTHONPATH` before
+     exec'ing `python -m bridge`.
 
-The `Session 1 prompt` DoD command `uv run uvicorn bridge.main:app --port 8788`
-currently requires the same `PYTHONPATH` to be set; without it, you'd hit the
-namespace-package failure described above. Worth re-examining once uv ships a
-fix; remove the workaround and the workaround comments at that point.
+The Session 1 prompt's DoD command `uv run uvicorn bridge.main:app --port 8788`
+works after a fresh `uv sync` but cannot be relied on across repeated
+invocations. The reliable equivalent is `./scripts/run-bridge.sh`. When uv
+ships a fix, the cleanup is mechanical: drop `--no-sync` from CI, pre-commit,
+and the launcher; remove `[tool.pytest.ini_options].pythonpath` and the
+`PYTHONPATH` export. The workaround comments in those files are explicitly
+flagged so they are easy to find and remove.
 
 ### Build backend: `uv_build`, not `hatchling`
 
@@ -153,9 +172,10 @@ because no global identity was configured. Feel free to override.
 
 ## Known issues / TODO for next session
 
-1. **uv editable-install workaround is ugly.** Track upstream uv issue; remove
-   `[tool.pytest.ini_options].pythonpath` and `scripts/run-bridge.sh`'s
-   `PYTHONPATH` export when fixed. Update `CLAUDE.md` and `README.md` then.
+1. **uv editable-install workaround is ugly.** Track upstream uv issue; when
+   fixed, drop `--no-sync` from CI / pre-commit / `scripts/run-bridge.sh`,
+   remove `[tool.pytest.ini_options].pythonpath` and the `PYTHONPATH` export
+   in the launcher, and tidy the linked README and `CLAUDE.md` notes.
 2. **`docs/openapi-v1.yaml` is gitignored but not yet generated.** Step 8
    (Brain SDK) needs it. Add a `tools/dump-openapi.py` then.
 3. **No real Keychain integration.** Step 1 deliberately uses a JSON file at
