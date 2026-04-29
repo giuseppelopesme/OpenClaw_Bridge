@@ -4,7 +4,7 @@ Personal AI agent ecosystem. One bridge, three brains (CLU, TRON, FLYNN), three 
 
 ## Status
 
-Greenfield. Mac Mini was wiped, fresh macOS 26.4.1, nothing installed. Spec is written; code starts now.
+Build in progress. Session 1 (skeleton + auth + health) shipped. Session 2 (Keychain + vault provider + idempotency + rate limiter) pending.
 
 ## Architecture in brief
 
@@ -27,19 +27,24 @@ Mirror these into `docs/` in the repo as identical markdown. Vault copies are th
 ## Tech stack (locked)
 
 - Python 3.13
-- `uv` for env and lockfile management; workspace at repo root
+- `uv` for env and lockfile management; workspace at repo root; build backend `uv_build`
 - FastAPI for the bridge HTTP layer
 - `redis-py` async
 - `aiosqlite` for telemetry
+- `keyring` for macOS Keychain access
 - `pytest` + `pytest-asyncio`
 - `ruff` for lint and format
 - `mypy --strict` on `bridge/` and `brains/shared/` from day one
 
 Adding a dependency not in this list requires a conversation first.
 
+## Naming convention
+
+Reverse-DNS namespace for everything that needs one (Keychain service IDs, launchd plist labels, etc.) is `com.giuseppelopesme.openclaw.<component>`. Matches the GitHub username for visual consistency. OpenClaw is personal infrastructure with no organisational owner — never use any other namespace.
+
 ## Conventions
 
-- Cross-package imports are forbidden except `brains/*` → `brains/shared`. Enforce in CI.
+- Cross-package imports are forbidden except `brains/*` → `brains/shared`. Enforced by `scripts/check-boundaries.sh`.
 - Every endpoint ships with at least one happy-path test and one error-path test before it's considered done.
 - Every error response uses the envelope from API Contract v1. No exceptions.
 - Structured JSON logs to stderr. No `print()`.
@@ -47,13 +52,20 @@ Adding a dependency not in this list requires a conversation first.
 - Type-annotate everything, including private helpers.
 - New endpoints go in `bridge/src/bridge/routes/<domain>.py` and register in `main.py`. No god-route file.
 - Commit small, commit often. Each commit is a green test run.
+- Secrets live in macOS Keychain. Never in `.env`, never in JSON on disk, never in source.
+
+## Operational rules (uv 0.11.8 workaround in force)
+
+- The canonical bridge launcher is `./scripts/run-bridge.sh`. Do not invoke `uv run uvicorn …` for anything beyond a one-shot manual smoke test.
+- All automation uses `uv run --no-sync …` after a single `uv sync --group dev`.
+- See `docs/repo-layout.md` § Operational notes for the rationale and the cleanup path when uv ships a fix.
 
 ## Build order (locked)
 
 Each step is independently testable and shippable. Don't reorder without a conversation.
 
-1. Repo scaffold + bridge skeleton (FastAPI app, auth middleware, error envelope, `/v1/health`)
-2. Vault provider + `vault:read` / `vault:write` endpoints
+1. Repo scaffold + bridge skeleton (FastAPI app, auth middleware, error envelope, `/v1/health`) ✓ Session 1
+2. Keychain + vault provider + idempotency + rate limiter (Session 2)
 3. LLM router + OpenRouter provider + `/v1/llm/complete` with telemetry recording
 4. Redis event bus + `events:publish` / `events:subscribe`
 5. Apple provider (calendar, reminders, contacts) + endpoints
@@ -72,6 +84,7 @@ The bridge is useful at step 4. CLU is end-to-end at step 9. TRON and FLYNN come
 - Touching anything under `06 - Archive/` in the vault
 - Modifying or installing launchd plists for the first time
 - Storing real secrets anywhere outside macOS Keychain
+- Removing the `~/.openclaw/tokens.dev.json` fallback before Session 2 ships Keychain end-to-end
 
 ## Working principles
 
