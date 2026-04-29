@@ -1,0 +1,121 @@
+[project]
+name = "openclaw"
+version = "0.0.0"
+description = "OpenClaw monorepo workspace root."
+requires-python = ">=3.13,<3.14"
+
+# The root is a virtual package — it pulls in every workspace member so
+# `uv sync` installs the full dev environment with one command.
+dependencies = [
+    "openclaw-bridge",
+    "openclaw-relay-imessage",
+    "openclaw-brains-shared",
+    "openclaw-brain-clu",
+]
+
+[tool.uv.workspace]
+members = [
+    "bridge",
+    "relays/imessage",
+    "brains/shared",
+    "brains/clu",
+]
+
+[tool.uv.sources]
+openclaw-bridge = { workspace = true }
+openclaw-relay-imessage = { workspace = true }
+openclaw-brains-shared = { workspace = true }
+openclaw-brain-clu = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["docs", ".venv"]
+
+[tool.ruff.lint]
+# Pragmatic, opinionated baseline. Tighten as we grow.
+select = [
+    "E", "F", "W",  # pycodestyle / pyflakes
+    "I",            # isort
+    "B",            # bugbear
+    "UP",           # pyupgrade
+    "ANN",          # missing type annotations (CLAUDE.md: type-annotate everything)
+    "ASYNC",        # async correctness
+    "S",            # bandit
+    "BLE",          # blind except (CLAUDE.md: no bare except)
+    "T20",          # no print (CLAUDE.md: structured JSON logs only)
+    "RET",          # return value sanity
+    "SIM",          # simplifications
+    "TID",          # tidy imports — used to enforce package boundaries
+]
+ignore = [
+    "ANN401",  # allow Any in type annotations (used sparingly)
+    "S101",    # assert is fine in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "ANN", "S105", "S106", "PLC0415"]
+
+# Package-boundary enforcement is done via the `scripts/check-boundaries.sh`
+# CI step rather than ruff's banned-api (which can't express directory-scoped
+# allow-lists). See `docs/repo-layout.md` for the rules.
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+show_error_codes = true
+files = [
+    "bridge/src",
+    "brains/shared/src",
+]
+
+[[tool.mypy.overrides]]
+module = ["bridge.tests.*", "brains_shared.tests.*"]
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+asyncio_mode = "auto"
+# Workaround for uv 0.11.x + Python 3.13: uv flags `.pth` files in the venv
+# as macOS `UF_HIDDEN`, and Python 3.13's `site.py` skips hidden `.pth` files,
+# so editable workspace installs are not on `sys.path`. Until uv ships a fix,
+# point pytest at the source dirs explicitly. Production uvicorn invocations
+# set PYTHONPATH the same way (see `scripts/run-bridge.sh`).
+pythonpath = [
+    "bridge/src",
+    "brains/shared/src",
+    "brains/clu/src",
+    "relays/imessage/src",
+]
+testpaths = [
+    "bridge/tests",
+    "relays/imessage/tests",
+    "brains/shared/tests",
+    "brains/clu/tests",
+]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+filterwarnings = [
+    "error",
+]
