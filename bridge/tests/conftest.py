@@ -6,9 +6,13 @@ Keychain. The opt-in `macos_keychain` marker pulls the real backend back in
 for one integration test (skipped by default — see `tests/README.md`).
 
 Each test gets a fresh FastAPI app pointed at:
-- a tempfile-backed legacy JSON store (used by `tests/unit/test_auth_legacy_fallback.py`)
 - a tempfile vault root with at least one canned page
-- a per-test SQLite idempotency DB
+- per-test SQLite files for idempotency and telemetry
+
+The OpenRouter provider is rewired with an `httpx.MockTransport` that
+short-circuits every real network call. LLM-route tests further override
+`app.state.llm_router` with a fake provider via the `fake_llm_router`
+fixture so tests assert routing without touching httpx at all.
 
 Tokens are written into the fake Keychain at fixture setup so the bridge
 finds them via the normal `keychain.list_credentials()` path.
@@ -19,10 +23,12 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 
+import httpx
 import pytest
 from _support import FakeKeyring, TokenFixture
 from bridge.config import Settings
 from bridge.main import create_app
+from bridge.providers.llm.openrouter import OpenRouterProvider
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -44,7 +50,6 @@ def pytest_collection_modifyitems(
     items: list[pytest.Item],
 ) -> None:
     if config.getoption("-m"):
-        # Caller explicitly selected a marker expression — let it through.
         return
     skip_macos = pytest.mark.skip(reason="macos_keychain integration test (opt-in)")
     for item in items:
@@ -65,8 +70,10 @@ def fake_keychain() -> Iterator[FakeKeyring]:
 
 @pytest.fixture
 def tokens(fake_keychain: FakeKeyring) -> list[TokenFixture]:
-    """Pre-populate the fake Keychain with a couple of canned identities."""
-    _ = fake_keychain  # autouse already wired it; depend on it for ordering
+    """Pre-populate the fake Keychain with a couple of canned identities and
+    a stub OpenRouter provider key so the default health-check path reports
+    ok. Tests that want to force the degraded branch clear the provider entry."""
+    _ = fake_keychain
     fixtures = [
         TokenFixture(
             plain="dev-token-clu",
@@ -77,6 +84,7 @@ def tokens(fake_keychain: FakeKeyring) -> list[TokenFixture]:
     ]
     for f in fixtures:
         keychain.set_credential(f.actor, f.plain, list(f.scopes))
+    keychain.set_credential("provider.openrouter", "fake-test-or-key", [])
     return fixtures
 
 
@@ -94,24 +102,68 @@ def vault_root(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def settings(tmp_path: Path, vault_root: Path, tokens: list[TokenFixture]) -> Settings:
-    # Reference `tokens` so they are seeded before app startup.
     _ = tokens
     return Settings(
         host="127.0.0.1",
         port=8788,
         log_level="info",
-        token_store_path=tmp_path / "tokens.dev.json",
         idempotency_db_path=tmp_path / "idempotency.db",
+        telemetry_db_path=tmp_path / "telemetry.db",
+        access_log_path=tmp_path / "access.log",
         vault_root=vault_root,
     )
 
 
+def _default_mock_handler(request: httpx.Request) -> httpx.Response:
+    """Default httpx MockTransport: lets `/models` return 200 (so health is ok)
+    and any other call return a benign 200 chat completion. Tests that need
+    different OpenRouter behaviour install their own transport via
+    `replace_openrouter_transport`."""
+    if request.url.path.endswith("/models"):
+        return httpx.Response(200, json={"data": []})
+    if request.url.path.endswith("/chat/completions"):
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-mock",
+                "model": "anthropic/claude-haiku-4.5",
+                "choices": [
+                    {
+                        "message": {"role": "assistant", "content": "mocked reply"},
+                        "finish_reason": "stop",
+                    },
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            },
+        )
+    return httpx.Response(404)
+
+
 @pytest.fixture
-def app(settings: Settings) -> FastAPI:
-    return create_app(settings)
+def app(settings: Settings) -> Iterator[FastAPI]:
+    """Build a fresh FastAPI app and rewire the OpenRouter provider's httpx
+    client so it cannot reach the real network."""
+    instance = create_app(settings)
+    yield instance
 
 
 @pytest.fixture
 def client(app: FastAPI) -> Iterator[TestClient]:
     with TestClient(app) as c:
-        yield c
+        # Rewire OpenRouter to a MockTransport AFTER lifespan has installed
+        # the provider. `transport` swaps cleanly because we wrap a fresh
+        # AsyncClient — the original one is closed on shutdown.
+        original = app.state.openrouter_provider
+        mock_client = httpx.AsyncClient(transport=httpx.MockTransport(_default_mock_handler))
+        app.state.openrouter_provider = OpenRouterProvider(mock_client)
+        # Rewire the LLMRouter too so it points at the new provider.
+        app.state.llm_router._openrouter = app.state.openrouter_provider  # noqa: SLF001
+        try:
+            yield c
+        finally:
+            # Async close inside sync teardown — schedule on the loop the
+            # TestClient ran on. asyncio.run is fine here.
+            import asyncio
+
+            asyncio.run(mock_client.aclose())
+            app.state.openrouter_provider = original

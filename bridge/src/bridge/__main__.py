@@ -12,11 +12,15 @@ import uvicorn
 from bridge.config import Settings
 from bridge.logging_setup import configure_logging
 from bridge.main import app
+from bridge.telemetry import setup_access_log
 
 
 def main() -> None:
     cfg = Settings.from_env()
     configure_logging(cfg.log_level)
+    # JSONL access log file (daily-rotated, 30-day retention). Tests do not
+    # call this — they assert the structured `bridge.access` records via caplog.
+    setup_access_log(cfg.access_log_path)
     uvicorn.run(
         app,
         host=cfg.host,
