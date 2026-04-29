@@ -6,17 +6,16 @@
 Schemas come straight from `docs/api-contract.md`. The provider does the
 filesystem work and path-safety enforcement; this module is wiring.
 
-On a successful write we emit a structured log line at info level:
-
-    {"event":"vault.changed","path":"...","op":"...","actor":"..."}
-
-This is the placeholder for the real `vault.changed` Redis publish that lands
-in step 4 of the build order.
+On a successful write we publish to the `vault.changed` Redis topic (per
+`docs/event-bus.md`) and additionally emit a structured log line for
+local debugging. Publish failures do NOT fail the write — they're
+swallowed with a warning, since the on-disk state is already mutated.
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -24,6 +23,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from bridge.auth import AuthContext, require_scope
+from bridge.errors import DependencyUnavailable
+from bridge.eventbus import EventPublisher
 from bridge.providers.vault import VaultProvider, WriteMode
 from bridge.ratelimit import require_rate
 
@@ -91,7 +92,29 @@ async def vault_write(
         size=result.size,
         written_at=result.written_at,
     ).model_dump()
-    # TODO(step 4): replace this log with a Redis publish to `vault.changed`.
+    # Publish to the event bus. Failures are best-effort: the file is
+    # already on disk, and a downstream subscriber missing one event is
+    # an acceptable cost vs. failing a successful write. Subscribers
+    # poll the bus and tolerate gaps; cf. docs/event-bus.md.
+    publisher: EventPublisher | None = request.app.state.event_publisher
+    if publisher is not None:
+        try:
+            await publisher.publish(
+                "vault.changed",
+                {
+                    "path": result.path,
+                    "op": result.op,
+                    "changed_at": datetime.now(UTC).isoformat(),
+                },
+                publisher=auth.actor,
+            )
+        except DependencyUnavailable as exc:
+            logger.warning(
+                "vault_changed_publish_failed",
+                extra={"path": result.path, "error": exc.message},
+            )
+    # Always emit the local log line — useful when Redis is degraded and
+    # for grep-style debugging on a single host.
     logger.info(
         "vault.changed",
         extra={

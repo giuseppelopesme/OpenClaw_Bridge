@@ -13,6 +13,8 @@ Field summary:
 - `vault_root` — Obsidian vault root (`OBSIDIAN_VAULT`). Required for vault
   endpoints; `None` when the env var is not set, in which case those routes
   return `dependency_unavailable`.
+- `redis_host`, `redis_port`, `redis_db` — pub/sub + rate-limit storage.
+  The password lives in Keychain (`provider.redis`), not in env.
 
 Tokens live in macOS Keychain only. The Session 1/2 transitional JSON
 fallback was removed in Session 3.
@@ -34,6 +36,9 @@ class Settings:
     telemetry_db_path: Path
     access_log_path: Path
     vault_root: Path | None
+    redis_host: str
+    redis_port: int
+    redis_db: int
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -58,4 +63,7 @@ class Settings:
                 ),
             ),
             vault_root=(Path(os.path.expanduser(vault_raw)).resolve() if vault_raw else None),
+            redis_host=os.environ.get("BRIDGE_REDIS_HOST", "127.0.0.1"),
+            redis_port=int(os.environ.get("BRIDGE_REDIS_PORT", "6379")),
+            redis_db=int(os.environ.get("BRIDGE_REDIS_DB", "0")),
         )

@@ -111,6 +111,14 @@ def settings(tmp_path: Path, vault_root: Path, tokens: list[TokenFixture]) -> Se
         telemetry_db_path=tmp_path / "telemetry.db",
         access_log_path=tmp_path / "access.log",
         vault_root=vault_root,
+        # Tests do not start a real Redis. The bridge boots cleanly with
+        # `redis_client=None` (Keychain has no provider.redis entry by
+        # default in the fake), and the rate limiter falls back to its
+        # in-process bucket map. Tests that exercise the Redis path
+        # explicitly install a fakeredis client into app.state.
+        redis_host="127.0.0.1",
+        redis_port=6379,
+        redis_db=0,
     )
 
 
@@ -141,29 +149,48 @@ def _default_mock_handler(request: httpx.Request) -> httpx.Response:
 
 @pytest.fixture
 def app(settings: Settings) -> Iterator[FastAPI]:
-    """Build a fresh FastAPI app and rewire the OpenRouter provider's httpx
-    client so it cannot reach the real network."""
+    """Build a fresh FastAPI app. The lifespan body wires real services;
+    the `client` fixture then swaps in fakes so tests are hermetic."""
     instance = create_app(settings)
     yield instance
 
 
 @pytest.fixture
 def client(app: FastAPI) -> Iterator[TestClient]:
+    """Hermetic TestClient: fake OpenRouter, fake Redis, no network."""
+    import asyncio
+
+    import fakeredis.aioredis
+    from bridge.eventbus import EventPublisher
+    from bridge.ratelimit import RateLimiter
+
     with TestClient(app) as c:
-        # Rewire OpenRouter to a MockTransport AFTER lifespan has installed
-        # the provider. `transport` swaps cleanly because we wrap a fresh
-        # AsyncClient — the original one is closed on shutdown.
-        original = app.state.openrouter_provider
+        # OpenRouter — swap the real httpx client for a MockTransport.
+        original_or = app.state.openrouter_provider
         mock_client = httpx.AsyncClient(transport=httpx.MockTransport(_default_mock_handler))
         app.state.openrouter_provider = OpenRouterProvider(mock_client)
-        # Rewire the LLMRouter too so it points at the new provider.
         app.state.llm_router._openrouter = app.state.openrouter_provider  # noqa: SLF001
+
+        # Redis — swap whatever the lifespan picked (likely None, since the
+        # default fixture doesn't seed provider.redis) for an in-process
+        # fake. The fake supports pubsub and our EVAL-based Lua, so the
+        # rate limiter and event bus tests run end-to-end without touching
+        # a live daemon.
+        original_redis = app.state.redis_client
+        original_publisher = app.state.event_publisher
+        original_limiter = app.state.rate_limiter
+
+        fake = fakeredis.aioredis.FakeRedis(decode_responses=False)
+        app.state.redis_client = fake
+        app.state.event_publisher = EventPublisher(fake)
+        app.state.rate_limiter = RateLimiter(fake)
+
         try:
             yield c
         finally:
-            # Async close inside sync teardown — schedule on the loop the
-            # TestClient ran on. asyncio.run is fine here.
-            import asyncio
-
             asyncio.run(mock_client.aclose())
-            app.state.openrouter_provider = original
+            asyncio.run(fake.aclose())
+            app.state.openrouter_provider = original_or
+            app.state.redis_client = original_redis
+            app.state.event_publisher = original_publisher
+            app.state.rate_limiter = original_limiter

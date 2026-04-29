@@ -1,15 +1,16 @@
 """GET /v1/health — no auth.
 
-Response shape from `docs/api-contract.md`. Per-dep checks landed in
-Session 3; the originally-stubbed `redis`, `apple_bridge`, and `imap_*`
-keys remain "ok" stubs until their providers ship in steps 4–6.
+Response shape from `docs/api-contract.md`. Real per-dep probes landed in
+Sessions 3 + 4. `apple_bridge` and `imap_*` remain "ok" stubs until their
+providers ship in steps 5–6.
 
 Criticality:
 - Critical (a "down" or "degraded" pushes overall status off "ok"):
-  `keychain`, `idempotency_db`, `telemetry_db`, `vault`.
-- Non-critical: `openrouter`, plus all the still-stubbed keys. The LLM
-  endpoint owns its own errors; a slow OpenRouter shouldn't make
-  health flap.
+  `keychain`, `idempotency_db`, `telemetry_db`, `vault`, `redis`.
+- Non-critical: `openrouter`, plus the still-stubbed keys. The LLM
+  endpoint owns its own errors; a slow OpenRouter shouldn't flap health.
+  Redis is critical because the rate limiter and event bus both depend
+  on it; a "down" Redis means events and rate-limit accuracy degrade.
 
 All checks run concurrently with a short timeout so a single laggard
 doesn't slow the probe.
@@ -28,6 +29,7 @@ from pydantic import BaseModel
 
 from bridge import keychain
 from bridge.config import Settings
+from bridge.eventbus import EventPublisher
 from bridge.providers.llm.openrouter import OpenRouterProvider
 from bridge.providers.vault import VaultProvider
 
@@ -39,7 +41,7 @@ DepStatus = Literal["ok", "degraded", "down"]
 OverallStatus = Literal["ok", "degraded", "down"]
 
 _CRITICAL_DEPS: Final[frozenset[str]] = frozenset(
-    {"keychain", "idempotency_db", "telemetry_db", "vault"},
+    {"keychain", "idempotency_db", "telemetry_db", "vault", "redis"},
 )
 
 
@@ -107,6 +109,12 @@ async def _check_openrouter(provider: OpenRouterProvider) -> DepStatus:
     return await provider.healthcheck()
 
 
+async def _check_redis(publisher: EventPublisher | None) -> DepStatus:
+    if publisher is None:
+        return "down"
+    return await publisher.healthcheck()
+
+
 def _overall(deps: dict[str, DepStatus]) -> OverallStatus:
     """Critical-dep aware roll-up. See module docstring for criticality."""
     has_down = any(deps[k] == "down" for k in _CRITICAL_DEPS if k in deps)
@@ -126,21 +134,23 @@ async def health(request: Request) -> HealthResponse:
 
     vault_provider: VaultProvider = request.app.state.vault_provider
     openrouter_provider: OpenRouterProvider = request.app.state.openrouter_provider
+    event_publisher: EventPublisher | None = request.app.state.event_publisher
     idemp_conn: sqlite3.Connection | None = request.app.state.idempotency_conn
     tele_conn: sqlite3.Connection | None = request.app.state.telemetry_conn
 
-    keychain_status, openrouter_status = await asyncio.gather(
+    keychain_status, openrouter_status, redis_status = await asyncio.gather(
         _check_keychain(),
         _check_openrouter(openrouter_provider),
+        _check_redis(event_publisher),
     )
     deps: dict[str, DepStatus] = {
         # Stubs until their provider ships.
-        "redis": "ok",
         "apple_bridge": "ok",
         "imap_glysk": "ok",
         "imap_lopes": "ok",
         "imap_whilesum": "ok",
         # Real probes:
+        "redis": redis_status,
         "openrouter": openrouter_status,
         "keychain": keychain_status,
         "vault": _check_vault(vault_provider),
