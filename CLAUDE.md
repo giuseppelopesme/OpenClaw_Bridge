@@ -29,9 +29,11 @@ Mirror these into `docs/` in the repo as identical markdown. Vault copies are th
 - Python 3.13
 - `uv` for env and lockfile management; workspace at repo root; build backend `uv_build`
 - FastAPI for the bridge HTTP layer
-- `redis-py` async
-- `aiosqlite` for telemetry
-- `keyring` for macOS Keychain access
+- `httpx` for OpenRouter (and future) HTTP clients (added in Session 3)
+- `redis-py` async (lands in Session 4)
+- stdlib `sqlite3` for telemetry + idempotency cache (Session 2 chose sync over `aiosqlite`; SQLite ops are fast enough that the threading bridge isn't worth it)
+- `keyring` for macOS Keychain access (Session 2)
+- `python-frontmatter` for vault writes (Session 2)
 - `pytest` + `pytest-asyncio`
 - `ruff` for lint and format
 - `mypy --strict` on `bridge/` and `brains/shared/` from day one
@@ -65,9 +67,9 @@ Reverse-DNS namespace for everything that needs one (Keychain service IDs, launc
 Each step is independently testable and shippable. Don't reorder without a conversation.
 
 1. Repo scaffold + bridge skeleton (FastAPI app, auth middleware, error envelope, `/v1/health`) ✓ Session 1
-2. Keychain + vault provider + idempotency + rate limiter (Session 2)
-3. LLM router + OpenRouter provider + `/v1/llm/complete` with telemetry recording
-4. Redis event bus + `events:publish` / `events:subscribe`
+2. Keychain + vault provider + idempotency + rate limiter ✓ Session 2
+3. LLM router + OpenRouter provider + `/v1/llm/complete` + telemetry + real `/v1/health` ✓ Session 3
+4. Redis event bus + `events:publish` / `events:subscribe` (Session 4)
 5. Apple provider (calendar, reminders, contacts) + endpoints
 6. IMAP/SMTP provider + email endpoints
 7. iMessage relay (CLU only) + `imessage:send` / `imessage:inbound`
