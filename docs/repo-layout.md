@@ -235,3 +235,17 @@ Folded into the body above where the change is structural; listed here for trace
 - **Removed**: `~/.openclaw/tokens.dev.json` fallback path in `auth.py`, the `token_store_path` field on `Settings`, the `BRIDGE_TOKEN_STORE` env var, `bridge/tests/unit/test_auth_legacy_fallback.py`, and `scripts/migrate-tokens-to-keychain.py` (per Session 2's documented limitation: it could not recover plaintext from the digest-keyed JSON store).
 - **Env additions**: `BRIDGE_TELEMETRY_DB` (default `~/.openclaw/telemetry.db`), `BRIDGE_ACCESS_LOG` (default `~/.openclaw/access.log`).
 - **Deps**: `httpx>=0.28` promoted from the dev group to a runtime bridge dep (it was already present for the FastAPI test client).
+
+---
+
+## Changelog — 2026-04-29 (Session 4 deliveries)
+
+- **Event bus**: `bridge/src/bridge/eventbus/{publisher,subscriber}.py`; envelope per `docs/event-bus.md`. Redis password lives in Keychain (`provider.redis`), not on disk.
+- **Routes**: `bridge/src/bridge/routes/events.py` (POST `/v1/events/publish`, WebSocket `/v1/events/subscribe`).
+- **Real `vault.changed` publish**: `routes/vault.py` now publishes after a successful write; the local `bridge.vault` log line stays for debugging. Publish failures are best-effort (logged + swallowed).
+- **Rate limiter**: `RateLimiter` now Redis-backed via an atomic Lua script keyed on `bucket:{actor}:{scope}`. Falls back to the in-memory map if Redis is unavailable.
+- **`/v1/health`**: real `redis` probe (`PING` with 2s timeout); `redis` is critical, others stubbed since Session 1 stay stubbed.
+- **`system.bridge.startup`**: lifespan publishes once Redis is wired; failures are non-fatal and logged.
+- **Ops**: `ops/redis/redis.conf` (loopback, no persistence, 256 MB memcap), `ops/launchd/com.giuseppelopesme.openclaw.redis.plist` (manual install per its own commentary), `scripts/run-redis.sh` (foreground launcher; pulls `requirepass` from Keychain).
+- **Env additions**: `BRIDGE_REDIS_HOST`, `BRIDGE_REDIS_PORT`, `BRIDGE_REDIS_DB`. Password remains Keychain-only.
+- **Deps**: `redis>=5.2`, `websockets>=14.1` (runtime); `fakeredis[lua]>=2.20` (dev — pubsub + Lua-supporting fake for hermetic tests).

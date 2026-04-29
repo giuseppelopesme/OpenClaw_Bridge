@@ -739,3 +739,331 @@ time:
 Bring up local Redis on `127.0.0.1:6379` per `docs/event-bus.md` first;
 `requirepass` lives under Keychain `provider.redis` (same JSON schema as
 OpenRouter). Add the `redis` real probe to `/v1/health` once it's wired.
+
+
+---
+
+# Session 4 — Redis event bus, Redis-backed rate limiter, real vault.changed
+
+Date: 2026-04-29
+
+## What landed
+
+Step 4 of the locked build order. The bridge now mediates a Redis pub/sub
+event bus on `127.0.0.1:6379`, the rate limiter is backed by an atomic
+Redis Lua script, and `POST /v1/vault/write` actually publishes
+`vault.changed` on the bus instead of just logging it. `/v1/health`
+gained a real `redis` probe and the dep is critical.
+
+`uv run --no-sync pytest` is green at 140 passed / 1 skipped (the opt-in
+real-Keychain test). ruff, mypy, and the boundary script are clean. Full
+manual verification against a live Redis daemon captured below.
+
+### Local Redis instance
+
+- `ops/redis/redis.conf` — bind 127.0.0.1, save "", appendonly no,
+  maxmemory 256mb, maxmemory-policy allkeys-lru, per `docs/event-bus.md`.
+  `requirepass` deliberately not in the file; passed at start time.
+- `scripts/run-redis.sh` — pulls the password from Keychain
+  (`provider.redis`) and execs `redis-server` with `--requirepass`. The
+  password lives only in argv (visible to the same user only on macOS),
+  never on disk in plaintext.
+- `ops/launchd/com.giuseppelopesme.openclaw.redis.plist` — manual install
+  per the file's own commentary; **not** auto-loaded by this session.
+  Logs go to `~/.openclaw/redis.{out,err}.log`.
+
+### redis-py wiring
+
+- `bridge/src/bridge/eventbus/{publisher.py,subscriber.py}` — async
+  `EventPublisher` and async-context-manager `EventSubscriber`. Topic
+  validation in `subscriber.py` enforces the spec grammar (2–4
+  lowercase dot segments; `*` allowed for subscriptions only).
+- `build_redis_client()` reads the password from Keychain at boot,
+  returning a `redis.asyncio.Redis` configured for loopback. If the
+  Keychain entry is missing the lifespan logs a structured
+  `redis_password_missing` warning and continues; `app.state.redis_client`
+  is `None` and `/v1/health` reports `redis: down`.
+- `EventPublisher.healthcheck()` does a 2s `PING`, returns ok/degraded/down.
+- Real `redis` probe wired into `routes/health.py`. Critical-dep set
+  expanded to include redis: a missing or unreachable Redis pushes
+  overall health to "down".
+
+### POST /v1/events/publish
+
+- `bridge/src/bridge/routes/events.py` — scope `events:publish`. Body
+  validation via Pydantic; topic validation via `validate_publish_topic`
+  (rejects 1-segment, 5-segment, uppercase, and any wildcard — publishers
+  may not push to wildcards).
+- Returns `202 { event_id, published_at }`. The bridge stamps event_id
+  (uuid4), published_at (utc iso8601), publisher (from auth.actor), and
+  schema_version "1".
+
+### GET /v1/events/subscribe (WebSocket)
+
+- Same module — scope `events:subscribe`. **Auth runs BEFORE
+  `accept()`**: the route inspects the `Authorization` header from the
+  raw upgrade request and closes with code 1008 before a successful
+  handshake when missing/bad/wrong-scope. We do this manually because
+  FastAPI's `Depends(...)` on a WebSocket route runs after `accept()`,
+  which would surface as a half-open connection from a curl client.
+- Single `topic` query param; `*` wildcards supported per the grammar.
+- Two concurrent tasks per connection: a *forwarder* that pumps decoded
+  envelopes onto the socket as JSON frames, and a *drain_client* that
+  awaits any client message (treated as "polite stop"). `asyncio.wait`
+  with `FIRST_COMPLETED` joins them; the surviving task is cancelled.
+  Clean teardown via the `EventSubscriber` async-context.
+
+### Real vault.changed publish
+
+- `bridge/src/bridge/routes/vault.py` now calls
+  `EventPublisher.publish("vault.changed", ...)` after a successful
+  write. Payload `{path, op, changed_at}` per the topic catalogue.
+- The local `bridge.vault` log line stays — it's still useful when Redis
+  is degraded and for grep-style debugging on a single host. Publish
+  failures are swallowed with a `vault_changed_publish_failed` warning;
+  the on-disk write has already happened, and bus subscribers are
+  expected to tolerate gaps (event-bus.md "subscribers must be idempotent").
+
+### Redis-backed rate limiter
+
+- `bridge/src/bridge/ratelimit.py` keeps the `RateLimiter` public surface
+  (`check_async`, `clear`) and adds an EVAL-based path. The Lua script
+  reads server time via `redis.call('TIME')` so multiple bridge
+  processes (a future scenario) cannot disagree about `now`. Bucket
+  state is a Redis hash at `bucket:{actor}:{scope}` with fields
+  `tokens` (float) and `last_refill_ms` (int). EXPIRE is set on every
+  call so idle keys evict on their own.
+- The Lua return value is the retry-after time in milliseconds, encoded
+  as a string. `0` means allowed, `>0` means denied. `-1` is the
+  no-progress sentinel for `rate <= 0` (declared but unreachable in
+  practice).
+- When Redis is unavailable, the limiter falls back to its in-process
+  bucket map (the Session 2 implementation). Net effect: a missing or
+  briefly broken Redis degrades multi-process accuracy but never blocks
+  the bridge from serving. A `rate_limiter_redis_failed` warning logs
+  every fall-through.
+- Default specs unchanged from Session 2.
+
+### system.bridge.startup event
+
+Published from the lifespan, after Redis is wired but before traffic.
+If Redis is unreachable the publish raises `DependencyUnavailable`, the
+lifespan catches it, logs `system_bridge_startup_publish_failed`, and
+the bridge keeps going. Subscribers attached after startup don't see it
+(pub/sub is fire and forget) — this is documented in the lifespan and
+is what subscribers should expect.
+
+### Tests
+
+140 passed / 1 skipped. New files:
+
+- `bridge/tests/unit/test_eventbus.py` — envelope round-trip, topic
+  grammar (publish + subscribe paths), publish/subscribe loop against
+  fakeredis, publish error → DependencyUnavailable, healthcheck.
+- `bridge/tests/unit/test_events_route.py` — POST happy path, scope
+  rejection (403), topic validation (400), full WebSocket round-trip
+  with publish triggering a frame, WS rejections (missing token,
+  missing scope, malformed topic — all close 1008), real
+  `vault.changed` end-to-end via WS, 502 when publisher unavailable,
+  payload round-trip with nested dicts and unicode.
+- `bridge/tests/unit/test_system_events.py` — startup publish lands on
+  the bus (with a custom builder fixture that wires fakeredis BEFORE
+  lifespan), publish failure during startup is swallowed, in-memory
+  rate-limiter fallback when Redis is missing.
+- `bridge/tests/unit/test_ratelimit.py` — extended with
+  Redis-backed allow/deny/refill, multi-actor isolation, key + TTL
+  shape inspection (`bucket:{actor}:{scope}`, hash fields, EXPIRE
+  set), Redis-error fallback to in-memory.
+- The default `client` fixture wires fakeredis into `app.state` AFTER
+  lifespan (the lifespan's own publish then drops on the floor — that's
+  fine, the assertion-based tests use the post-fixture state).
+
+### New deps
+
+- `redis>=5.2` (already named in CLAUDE.md locked stack).
+- `websockets>=14.1` (runtime — uvicorn pulls it transitively but we
+  declare it explicitly for the WebSocket route to be guaranteed).
+- `fakeredis[lua]>=2.20` (dev only) — pubsub + Lua-supporting fake.
+- New env knobs: `BRIDGE_REDIS_HOST`, `BRIDGE_REDIS_PORT`,
+  `BRIDGE_REDIS_DB` (defaults: 127.0.0.1, 6379, 0). The password lives
+  in Keychain only.
+
+## Verification
+
+```bash
+uv sync --group dev                                          # 50 packages locked
+uv run --no-sync pytest -q                                   # 140 passed, 1 skipped
+uv run --no-sync ruff check .                                # all checks passed
+uv run --no-sync ruff format --check .                       # 53 files already formatted
+uv run --no-sync mypy                                        # success: 30 source files
+bash scripts/check-boundaries.sh                             # OK
+```
+
+### Manual walkthrough (real Redis daemon)
+
+```bash
+# 1. Bootstrap the Redis password.
+uv run --no-sync python -c '
+import secrets
+from bridge import keychain
+keychain.set_credential("provider.redis", secrets.token_hex(32), [])
+'
+
+# 2. Start Redis (foreground, two-terminal dev mode).
+./scripts/run-redis.sh &
+
+# 3. Mint a bridge token with the events scopes.
+uv run --no-sync python scripts/mint-token.py \
+    --actor cli.events --scopes events:publish,events:subscribe
+
+# 4. Boot the bridge.
+export OBSIDIAN_VAULT="/Users/giuseppelopes/Library/Mobile Documents/iCloud~md~obsidian/Documents/GiuseppeLopes"
+./scripts/run-bridge.sh &
+
+# 5. /v1/health — every dep "ok" including the live Redis probe.
+curl http://127.0.0.1:8788/v1/health | jq
+# { "status": "ok", "deps": { "redis": "ok", ... } }
+
+# 6. POST /v1/events/publish, with a redis-cli subscriber attached.
+TOKEN=<events token from step 3>
+PASSWORD=$(python -c 'from bridge import keychain; print(keychain.get_credential("provider.redis").token)')
+redis-cli -a "$PASSWORD" psubscribe 'vault.*' &
+
+curl -X POST http://127.0.0.1:8788/v1/events/publish \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"topic":"vault.changed","payload":{"path":"manual.md","op":"create"}}'
+# { "event_id": "...", "published_at": "..." }
+#
+# redis-cli prints:
+# pmessage  vault.*  vault.changed  {"event_id":"...","topic":"vault.changed",...}
+
+# 7. Vault write triggers a real vault.changed publish.
+# Open a Python websockets client (see /tmp/openclaw-ws-test.py in the
+# session transcript) on /v1/events/subscribe?topic=vault.*, then:
+curl -X POST http://127.0.0.1:8788/v1/vault/write \
+    -H "Authorization: Bearer $CLU_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"path":"_openclaw-tmp/event-test.md","mode":"create","content":"hi\n"}'
+# WebSocket frame received:
+# {
+#   "topic": "vault.changed",
+#   "publisher": "cli.giuseppelopes",
+#   "payload": {"path":"_openclaw-tmp/event-test.md","op":"create",...}
+# }
+
+# 8. Rate limiter — 22 attempts at vault:write (burst 20).
+for i in $(seq 1 25); do
+    curl -sS -o /dev/null -w "$i: %{http_code}\n" -X POST \
+        http://127.0.0.1:8788/v1/vault/write \
+        -H "Authorization: Bearer $CLU_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"path\":\"_openclaw-tmp/burst-$i.md\",\"mode\":\"create\",\"content\":\"x\"}"
+done
+# 1: 201 ... 20: 201, 21: 429, 22: 429, 23: 429, 24: 429, 25: 429
+
+# 9. Inspect bucket state directly in Redis.
+redis-cli -a "$PASSWORD" hgetall "bucket:cli.giuseppelopes:vault:write"
+# tokens          0.344
+# last_refill_ms  1777488794545
+redis-cli -a "$PASSWORD" ttl "bucket:cli.giuseppelopes:vault:write"
+# (positive integer, EXPIRE set)
+
+# 10. Synthetic Redis-down — kill the daemon, watch /v1/health.
+kill $(lsof -ti :6379)
+curl http://127.0.0.1:8788/v1/health | jq
+# { "status": "down", "deps": { "redis": "down", ... } }
+# Bridge log shows: system_bridge_startup_publish_failed warning.
+# Bridge stays serving; rate limiter falls back to in-process buckets.
+```
+
+All ten steps observed live during this session.
+
+## Decisions locked
+
+### Topic grammar lives in the bridge, not Redis
+
+Redis itself accepts any byte string as a channel name. We enforce the
+2–4-segment lowercase grammar at publish + subscribe time so the topic
+catalogue stays disciplined. Subscribers may use `*` as a single-segment
+wildcard (consumed by Redis `psubscribe`); publishers may not — pushing
+to a wildcard is a programming error. Documented in
+`bridge/src/bridge/eventbus/subscriber.py`.
+
+### WebSocket auth runs before `accept()`
+
+FastAPI's `Depends(require_scope(...))` on a WebSocket route runs
+*after* `accept()`. That makes 401 / 403 invisible to a curl client (the
+TCP handshake completes; only then does the server close). We pre-flight
+the bearer token by reading the `Authorization` header off the raw
+upgrade request, so a token-less client gets a clean close-1008 before
+any handshake completes. Bus tests confirm the close codes.
+
+### system.bridge.startup is best-effort
+
+Subscribers attached after startup miss the event. That is intentional:
+pub/sub is fire-and-forget; the topic catalogue documents this. If we
+ever want late-attaching observers to see startup, the right move is a
+persistent stream (`XADD`/`XREADGROUP`), not a coordinated handshake.
+That's a v1.x decision when streaming demand actually appears.
+
+### Lifespan boots cleanly without Redis
+
+`provider.redis` missing from Keychain = bridge boots, redis_client is
+None, `/v1/health` says `redis: down`, rate limiter falls back to
+in-process. We log a `redis_password_missing` warning so the operator
+sees it, but the bridge serves traffic. The alternative (refuse to
+boot) would block dev-machine first-time setup; the current behaviour
+is symmetric with the OpenRouter "no key" path from Session 3.
+
+### `vault.changed` publish is best-effort
+
+Vault write succeeds → file is on disk. If the publish then fails (Redis
+hiccup, bridge mid-restart, whatever), we log a
+`vault_changed_publish_failed` warning but return 201/200 to the caller.
+Subscribers must tolerate gaps; the subscriber API contract already
+says so. Net effect: a degraded bus never causes vault writes to fail.
+
+## Pubsub subtlety that bit us
+
+The default `client` test fixture replaces `app.state.redis_client` with
+fakeredis AFTER the lifespan completes. The lifespan's
+`system.bridge.startup` publish therefore goes to *whatever was wired
+during boot* (None, in test mode), not to the fakeredis. The first take
+at the system-events test failed because of this — the fix is to wire
+fakeredis BEFORE lifespan runs (a separate `app_with_fake_redis`
+fixture monkeypatches `bridge.main.build_redis_client`). Documented in
+`test_system_events.py`'s docstring so the next person doesn't relearn
+this the hard way.
+
+## Known issues / TODO for next session
+
+1. **uv 0.11.x editable-install workaround is still in force.** No
+   change vs Session 1–3.
+2. **No persistent / replayable event streams.** Step 9+ (CLU brain)
+   may need replay for at-least-once semantics; we're holding off until
+   the use case is concrete.
+3. **No Redis backpressure handling on the WebSocket route.** A slow
+   client gets a backed-up Redis pubsub buffer; `psubscribe` will drop
+   if `client-output-buffer-limit pubsub` triggers. The current
+   `redis.conf` doesn't customise that — defaults are
+   `32mb 8mb 60`. If brains drop messages under load, tune this.
+4. **WebSocket auth pre-flight is bespoke.** If we add more WS routes,
+   factor it into a shared helper. One copy is fine for now.
+5. **launchd plist not loaded automatically.** Per the spec, this
+   session ships the plist file but does not install it system-wide.
+   `launchctl load ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.redis.plist`
+   moves it to autostart.
+
+## What Session 5 should pick up
+
+Step 5 of the build order: Apple provider (calendar, reminders,
+contacts) + endpoints. Bring up:
+
+- `bridge/src/bridge/providers/apple/{calendar,reminders,contacts}.py`
+  using `osascript` (or EventKit via PyObjC if PyObjC ships in the
+  locked stack — confirm before adding it).
+- `bridge/src/bridge/routes/{calendar,reminders,contacts}.py` per the
+  shapes in `docs/api-contract.md`.
+- Real `apple_bridge` probe in `/v1/health` (currently a stub).
+- Tests against AppleScript fixtures captured from the live host.

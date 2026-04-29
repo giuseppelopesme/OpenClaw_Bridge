@@ -396,3 +396,34 @@ Successful `POST /v1/llm/complete` calls write the telemetry row via FastAPI `Ba
 ### Token store is Keychain-only
 
 The `~/.openclaw/tokens.dev.json` fallback documented in the Session 2 amendments was removed in Session 3. Tokens live exclusively in macOS Keychain under service `com.giuseppelopesme.openclaw.bridge`. Mint with `scripts/mint-token.py` on a fresh host. The `BRIDGE_TOKEN_STORE` env var is gone.
+
+
+---
+
+## Amendments — 2026-04-29 (Session 4)
+
+These supersede the corresponding parts of the spec above. Reasons documented in the Session 4 entry of `SESSION-NOTES.md`.
+
+### `/v1/health` deps map: `redis` is now real, not a stub
+
+Probe is `EventPublisher.healthcheck()` (a 2s `PING`). `redis` joins the critical-dep set: a "down" or "degraded" Redis pushes overall status off "ok". Justification: rate limiter accuracy across processes and the event bus both depend on Redis. The bridge still boots with Redis missing — `redis_client` is `None`, the limiter falls back to in-process buckets, and `system.bridge.startup` skip-publishes — but operators see the degraded state via `/v1/health`.
+
+### Topic grammar enforced at the bridge
+
+Per `docs/event-bus.md`, topic names are 2–4 lowercase dot-separated segments (`[a-z0-9_]+`). The bridge validates this at publish (no wildcards allowed) and at subscribe (single-segment `*` wildcards allowed). Violations return `400 bad_request`. Subscriptions over WebSocket close with code 1008 on a malformed pattern.
+
+### `GET /v1/events/subscribe` rejects invalid auth before the WebSocket upgrade
+
+A client without a bearer token, with an unknown token, or with a token that lacks `events:subscribe` is closed with WebSocket code 1008 *before* `accept()`. This means `curl --include` against the WS path sees a clean HTTP 403 response (or 400 for malformed topics). The handshake itself only completes once the bridge has approved the request.
+
+### Rate limiter backing store
+
+The token-bucket store is a Redis hash at `bucket:{actor}:{scope}` with fields `tokens` (float) and `last_refill_ms` (int). `take` is a single atomic `EVAL` so multi-process bridges cannot race the same bucket. When Redis is unavailable, the limiter falls back to a process-local map; behaviour from the caller's perspective is identical except for cross-process inconsistency. The `RateLimiter.check_async` surface is the contract.
+
+### `system.bridge.startup` is best-effort
+
+The bridge publishes `system.bridge.startup` during lifespan startup, after Redis is wired but before serving traffic. If Redis is unreachable at startup, the publish is skipped with a structured warning and the bridge continues. Subscribers attached after the publish do **not** see this event — pub/sub is fire-and-forget. If late-attaching observers ever need it, switch the topic to a Redis stream; not in v1.
+
+### `vault.changed` payload field
+
+Payload shape is `{ "path": "...", "op": "create|append|replace", "changed_at": "iso8601" }` per the topic catalogue. Successful vault writes publish this on every code path. Publish failures do not fail the write — the file is already on disk and subscribers must tolerate gaps (see `docs/event-bus.md` § Patterns to follow).

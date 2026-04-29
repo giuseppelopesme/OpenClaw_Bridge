@@ -4,7 +4,7 @@ Personal AI agent ecosystem. One bridge, three brains (CLU, TRON, FLYNN), three 
 
 ## Status
 
-Build in progress. Sessions 1–3 shipped. Session 4 (Redis event bus + `events:publish` / `events:subscribe`; Redis-backed rate limiter; real `vault.changed` publish) pending.
+Build in progress. Sessions 1–4 shipped. Session 5 (Apple provider — calendar, reminders, contacts) pending.
 
 ## Architecture in brief
 
@@ -30,7 +30,7 @@ Mirror these into `docs/` in the repo as identical markdown. Vault copies are th
 - `uv` for env and lockfile management; workspace at repo root; build backend `uv_build`
 - FastAPI for the bridge HTTP layer
 - `httpx` for OpenRouter (and future) HTTP clients (added in Session 3)
-- `redis-py` async (lands in Session 4)
+- `redis-py` async + `websockets` for the event bus (added in Session 4)
 - stdlib `sqlite3` for telemetry + idempotency cache (Session 2 chose sync over `aiosqlite`; SQLite ops are fast enough that the threading bridge isn't worth it)
 - `keyring` for macOS Keychain access (Session 2)
 - `python-frontmatter` for vault writes (Session 2)
@@ -69,8 +69,8 @@ Each step is independently testable and shippable. Don't reorder without a conve
 1. Repo scaffold + bridge skeleton (FastAPI app, auth middleware, error envelope, `/v1/health`) ✓ Session 1
 2. Keychain + vault provider + idempotency + rate limiter ✓ Session 2
 3. LLM router + OpenRouter provider + `/v1/llm/complete` + telemetry + real `/v1/health` ✓ Session 3
-4. Redis event bus + `events:publish` / `events:subscribe` (Session 4)
-5. Apple provider (calendar, reminders, contacts) + endpoints
+4. Redis event bus + `events:publish` / `events:subscribe` + Redis-backed rate limiter + real `vault.changed` ✓ Session 4
+5. Apple provider (calendar, reminders, contacts) + endpoints (Session 5)
 6. IMAP/SMTP provider + email endpoints
 7. iMessage relay (CLU only) + `imessage:send` / `imessage:inbound`
 8. Brain SDK (`brains/shared`) generated from the OpenAPI spec
