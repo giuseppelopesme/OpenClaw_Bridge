@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn>=0.32",
     "keyring>=25.5",
     "python-frontmatter>=1.1",
+    "httpx>=0.28",
 ]
 
 [build-system]

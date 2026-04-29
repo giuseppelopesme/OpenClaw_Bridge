@@ -372,6 +372,7 @@ version = "0.1.0"
 source = { editable = "bridge" }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "keyring" },
     { name = "python-frontmatter" },
     { name = "uvicorn" },
@@ -380,6 +381,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "keyring", specifier = ">=25.5" },
     { name = "python-frontmatter", specifier = ">=1.1" },
     { name = "uvicorn", specifier = ">=0.32" },
