@@ -24,9 +24,13 @@ service" call, so we maintain our own manifest item under the same service with
 account `_actors_` containing a JSON list. `set_credential` and
 `delete_credential` keep it in sync.
 
-Platform: this module is macOS-only in production. On any other platform it
-raises `RuntimeError` at import time. Tests on every platform use the in-memory
-fake backend wired through `bridge.tests.conftest`.
+Platform: this module targets macOS in production. Importing the module on
+other platforms is allowed (CI on Linux, dev machines, etc.) — `keyring` will
+pick whichever backend is available there. Tests on every platform should use
+the in-memory fake backend wired through `bridge.tests.conftest`. If you start
+the bridge for real on a non-macOS host, `keyring` will either pick a backend
+the OS provides (e.g. Secret Service on Linux) or raise its own clear error.
+Do not deploy the bridge anywhere other than macOS.
 
 This module deliberately has zero FastAPI imports so CLI tools can use it
 without dragging in the web stack.
@@ -36,15 +40,9 @@ from __future__ import annotations
 
 import contextlib
 import json
-import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Final, Protocol
-
-if sys.platform != "darwin":  # pragma: no cover - production constraint only
-    raise RuntimeError(
-        "bridge.keychain is macOS-only. Use the test fake backend on other platforms.",
-    )
 
 import keyring
 

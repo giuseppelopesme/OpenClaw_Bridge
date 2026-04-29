@@ -4,7 +4,7 @@ Personal AI agent ecosystem. One bridge, three brains (CLU, TRON, FLYNN), three 
 
 ## Status
 
-Build in progress. Sessions 1 (skeleton + auth + health) and 2 (Keychain + vault provider + idempotency + rate limiter) shipped. Session 3 (LLM router + telemetry; legacy `tokens.dev.json` cleanup) pending.
+Build in progress. Sessions 1–2 shipped. Session 3 (LLM router + OpenRouter + telemetry + JSON-fallback removal) is the next session.
 
 ## Architecture in brief
 
@@ -31,7 +31,9 @@ Mirror these into `docs/` in the repo as identical markdown. Vault copies are th
 - FastAPI for the bridge HTTP layer
 - `redis-py` async
 - `aiosqlite` for telemetry
+- `httpx` for the OpenRouter client (added in Session 3)
 - `keyring` for macOS Keychain access
+- `python-frontmatter` for vault writes (added in Session 2)
 - `pytest` + `pytest-asyncio`
 - `ruff` for lint and format
 - `mypy --strict` on `bridge/` and `brains/shared/` from day one
@@ -65,8 +67,8 @@ Reverse-DNS namespace for everything that needs one (Keychain service IDs, launc
 Each step is independently testable and shippable. Don't reorder without a conversation.
 
 1. Repo scaffold + bridge skeleton (FastAPI app, auth middleware, error envelope, `/v1/health`) ✓ Session 1
-2. Keychain + vault provider + idempotency + rate limiter (Session 2)
-3. LLM router + OpenRouter provider + `/v1/llm/complete` with telemetry recording
+2. Keychain + vault provider + idempotency + rate limiter ✓ Session 2
+3. LLM router + OpenRouter provider + `/v1/llm/complete` with telemetry recording (Session 3)
 4. Redis event bus + `events:publish` / `events:subscribe`
 5. Apple provider (calendar, reminders, contacts) + endpoints
 6. IMAP/SMTP provider + email endpoints
@@ -84,7 +86,7 @@ The bridge is useful at step 4. CLU is end-to-end at step 9. TRON and FLYNN come
 - Touching anything under `06 - Archive/` in the vault
 - Modifying or installing launchd plists for the first time
 - Storing real secrets anywhere outside macOS Keychain
-- Removing the `~/.openclaw/tokens.dev.json` fallback before Session 2 ships Keychain end-to-end
+- Removing the `~/.openclaw/tokens.dev.json` fallback before Session 3 ships its replacement (the fallback removal IS a Session 3 deliverable; just don't do it ahead of the rest of Session 3)
 
 ## Working principles
 
