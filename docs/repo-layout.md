@@ -152,3 +152,55 @@ The point is brutal: if Tron's brain breaks, it cannot bring down the bridge or 
 7. Run health check
 
 The whole bootstrap should be reproducible end-to-end in under 10 minutes on the M4.
+
+
+---
+
+## Amendments — 2026-04-29 (Session 1)
+
+These supersede the corresponding parts of the spec above. Reasons documented in `SESSION-NOTES.md` from Session 1.
+
+### Repo location
+
+The repo lives at `~/Developer/openclaw` on the Mac Mini, not `~/openclaw`. Update launchd plists, install scripts, and any documentation accordingly.
+
+### Boundary enforcement is a shell script, not ruff
+
+`scripts/check-boundaries.sh` is the canonical boundary enforcer. It runs in pre-commit and CI. Ruff's `flake8-tidy-imports` cannot express directory-scoped allow-lists, which is what the boundary rule actually requires. The shell script is grep-based, trivially extensible, and good enough.
+
+### Canonical launcher: `./scripts/run-bridge.sh`
+
+The DoD command `uv run uvicorn bridge.main:app --port 8788` works after a fresh `uv sync` but **cannot be relied on across repeated invocations**. uv 0.11.8 generates editable workspace `.pth` files with the macOS `UF_HIDDEN` flag set, and Python 3.13's `site.py` skips hidden `.pth` files. The result: workspace packages drop off `sys.path` non-deterministically.
+
+Two complementary workarounds, both currently in place:
+
+1. **`uv run --no-sync` everywhere uv is driven from automation.** Pre-commit hooks, CI steps, and `scripts/run-bridge.sh` all use `--no-sync`. The pattern is `uv sync --group dev` once (CI step or fresh dev checkout) and `uv run --no-sync ...` for everything that follows.
+2. **Explicit `sys.path` where uv's `.pth` is unreliable:**
+   - Tests: `[tool.pytest.ini_options].pythonpath` in root `pyproject.toml` puts each workspace `src/` directory on the path regardless of `.pth` state.
+   - Production: `scripts/run-bridge.sh` exports `PYTHONPATH` before exec'ing `python -m bridge`.
+
+When uv ships a fix, the cleanup is mechanical: drop `--no-sync` from CI / pre-commit / launcher, remove `pythonpath` from pytest config, remove the `PYTHONPATH` export from the launcher. All workaround sites carry an explicit comment so they are easy to find.
+
+### Build backend: `uv_build`
+
+The original spec did not pin a build backend. The repo uses `uv_build` rather than `hatchling` — natural choice for a uv-managed workspace, one fewer dep in the lockfile.
+
+### Tooling additions over original spec
+
+- `[tool.ruff]` configured with line-length 100 and broad rule selection including `ANN`, `BLE`, `T20`.
+- Pre-commit hooks: ruff check, ruff format check, mypy, boundary script on commit; pytest on push.
+- All hooks invoke `uv run --no-sync` per the workaround above.
+
+
+### Repo location — correction
+
+The previous amendment said `~/Developer/openclaw`. The correct path is `~/Developer/OpenClaw/OpenClaw_Bridge` (parent `OpenClaw/` is reserved for the umbrella; bridge code lives in the `OpenClaw_Bridge/` subfolder). Update launchd plists, install scripts, and `ops/install.sh` step 3 accordingly.
+
+
+---
+
+## Path correction — 2026-04-29 (post-iCloud)
+
+The earlier amendment said `~/Developer/openclaw`. Canonical path is `~/Developer/OpenClaw_Bridge`. Repo briefly lived inside iCloud Drive and was moved out after sync conflicts created duplicate `uv.lock` copies. iCloud is unsuitable for live codebases (venv eviction, conflict copies on writes, slow Git operations) — for cross-machine sync, push to GitHub.
+
+Update launchd plists, install scripts, and any tooling that hardcodes a repo path accordingly.
