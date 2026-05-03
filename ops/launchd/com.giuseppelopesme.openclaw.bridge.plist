@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OpenClaw bridge launchd job.
+
+  Runs as macOS user `giuseppelopes`. The bridge is the only process
+  that talks to Apple, IMAP/SMTP, Redis, LLM providers, vault. All
+  brains and relays talk to it over loopback.
+
+  Pre-flight (operator, one-time):
+
+    1. Redis is running (com.giuseppelopesme.openclaw.redis loaded).
+    2. provider.redis Keychain password is bootstrapped (see
+       scripts/run-redis.sh comment for the one-liner).
+    3. provider.openrouter Keychain entry is set with your OpenRouter
+       API key (the bridge needs it to satisfy /v1/health and
+       /v1/llm/complete).
+
+  NOT auto-installed. To load (one-time):
+
+      cp ops/launchd/com.giuseppelopesme.openclaw.bridge.plist \
+         ~/Library/LaunchAgents/
+      launchctl bootstrap gui/$(id -u) \
+         ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.bridge.plist
+
+  To unload:
+      launchctl bootout gui/$(id -u)/com.giuseppelopesme.openclaw.bridge
+
+  Logs are written to /Users/giuseppelopes/.openclaw/bridge.{out,err}.log
+  so Console.app and `tail -f` both work. Structured JSON to stderr.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.giuseppelopesme.openclaw.bridge</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/giuseppelopes/Runtime/OpenClaw_Bridge/scripts/run-bridge.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/giuseppelopes/Runtime/OpenClaw_Bridge</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/giuseppelopes/.openclaw/bridge.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/giuseppelopes/.openclaw/bridge.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+
+    <key>BRIDGE_HOST</key>
+    <string>127.0.0.1</string>
+
+    <key>BRIDGE_PORT</key>
+    <string>8788</string>
+
+    <key>BRIDGE_REDIS_HOST</key>
+    <string>127.0.0.1</string>
+
+    <key>BRIDGE_REDIS_PORT</key>
+    <string>6379</string>
+
+    <key>BRIDGE_AGENT_DB</key>
+    <string>/Users/giuseppelopes/.openclaw/agent.db</string>
+  </dict>
+</dict>
+</plist>
