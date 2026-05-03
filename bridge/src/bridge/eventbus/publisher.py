@@ -102,7 +102,14 @@ def build_redis_client(
         password=cred.token,
         decode_responses=False,
         socket_connect_timeout=2.0,
-        socket_timeout=5.0,
+        # Per-command read timeout. MUST exceed the longest BLPOP we'd
+        # ever issue, otherwise the long-poll outbox endpoint
+        # (GET /v1/imessage/outbox?timeout_s=…, capped at _MAX_BLPOP_S=60
+        # in bridge/routes/imessage.py) would have its redis-py socket
+        # time out before BLPOP returns. The route would then surface
+        # 502 dependency_unavailable on every empty long-poll instead of
+        # an honest 204. Set to MAX_BLPOP_S + 10s buffer.
+        socket_timeout=70.0,
     )
 
 
