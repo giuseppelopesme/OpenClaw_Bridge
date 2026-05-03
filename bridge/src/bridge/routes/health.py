@@ -1,16 +1,17 @@
 """GET /v1/health — no auth.
 
 Response shape from `docs/api-contract.md`. Real per-dep probes landed in
-Sessions 3 + 4. `apple_bridge` and `imap_*` remain "ok" stubs until their
-providers ship in steps 5–6.
+Sessions 3 + 4 + 5 + 6. All deps are now live probes — no stubs left.
 
 Criticality:
 - Critical (a "down" or "degraded" pushes overall status off "ok"):
-  `keychain`, `idempotency_db`, `telemetry_db`, `vault`, `redis`.
-- Non-critical: `openrouter`, plus the still-stubbed keys. The LLM
-  endpoint owns its own errors; a slow OpenRouter shouldn't flap health.
-  Redis is critical because the rate limiter and event bus both depend
-  on it; a "down" Redis means events and rate-limit accuracy degrade.
+  `keychain`, `idempotency_db`, `telemetry_db`, `vault`, `redis`,
+  `apple_bridge`.
+- Non-critical: `openrouter`, `imap_*`. The LLM endpoint owns its own
+  errors; a slow OpenRouter shouldn't flap health. The three IMAP
+  accounts are convenience surfaces — if one's mail server is down,
+  email reads fail loudly via the route's 502, but the bridge stays
+  serving the rest. Operators see the gap in the deps map.
 
 All checks run concurrently with a short timeout so a single laggard
 doesn't slow the probe.
@@ -29,7 +30,10 @@ from pydantic import BaseModel
 
 from bridge import keychain
 from bridge.config import Settings
+from bridge.errors import DependencyUnavailable
 from bridge.eventbus import EventPublisher
+from bridge.providers.apple.runner import run_osascript
+from bridge.providers.email.imap import IMAPProvider
 from bridge.providers.llm.openrouter import OpenRouterProvider
 from bridge.providers.vault import VaultProvider
 
@@ -41,8 +45,19 @@ DepStatus = Literal["ok", "degraded", "down"]
 OverallStatus = Literal["ok", "degraded", "down"]
 
 _CRITICAL_DEPS: Final[frozenset[str]] = frozenset(
-    {"keychain", "idempotency_db", "telemetry_db", "vault", "redis"},
+    {
+        "keychain",
+        "idempotency_db",
+        "telemetry_db",
+        "agent_db",
+        "vault",
+        "redis",
+        "apple_bridge",
+    },
 )
+
+
+_IMAP_ACCOUNTS: Final[tuple[str, ...]] = ("glysk", "lopes", "whilesum")
 
 
 class Deps(BaseModel):
@@ -56,6 +71,7 @@ class Deps(BaseModel):
     vault: DepStatus
     idempotency_db: DepStatus
     telemetry_db: DepStatus
+    agent_db: DepStatus
 
 
 class HealthResponse(BaseModel):
@@ -115,6 +131,35 @@ async def _check_redis(publisher: EventPublisher | None) -> DepStatus:
     return await publisher.healthcheck()
 
 
+async def _check_imap(provider: IMAPProvider | None) -> DepStatus:
+    """No provider for this account → 'down' (config or password missing)."""
+    if provider is None:
+        return "down"
+    try:
+        return await provider.healthcheck()
+    except Exception:  # noqa: BLE001 — health checks must not raise
+        logger.exception("health_check_imap_failed")
+        return "down"
+
+
+async def _check_apple_bridge() -> DepStatus:
+    """Cheap inert osascript probe.
+
+    Runs `tell application "System Events" to return true`. A successful
+    "true" means osascript is available and at least one app is reachable.
+    Timeouts and runner errors collapse to "down" — TCC denials surface
+    as runner errors and are also reported "down".
+    """
+    try:
+        out = await run_osascript(
+            'tell application "System Events" to return true',
+            timeout_s=2.0,
+        )
+    except DependencyUnavailable:
+        return "down"
+    return "ok" if out == "true" else "down"
+
+
 def _overall(deps: dict[str, DepStatus]) -> OverallStatus:
     """Critical-dep aware roll-up. See module docstring for criticality."""
     has_down = any(deps[k] == "down" for k in _CRITICAL_DEPS if k in deps)
@@ -137,25 +182,31 @@ async def health(request: Request) -> HealthResponse:
     event_publisher: EventPublisher | None = request.app.state.event_publisher
     idemp_conn: sqlite3.Connection | None = request.app.state.idempotency_conn
     tele_conn: sqlite3.Connection | None = request.app.state.telemetry_conn
+    agent_conn: sqlite3.Connection | None = request.app.state.agent_conn
 
-    keychain_status, openrouter_status, redis_status = await asyncio.gather(
+    imap_providers: dict[str, IMAPProvider] = request.app.state.email_imap_providers
+
+    results = await asyncio.gather(
         _check_keychain(),
         _check_openrouter(openrouter_provider),
         _check_redis(event_publisher),
+        _check_apple_bridge(),
+        *(_check_imap(imap_providers.get(name)) for name in _IMAP_ACCOUNTS),
     )
+    keychain_status, openrouter_status, redis_status, apple_status = results[:4]
+    imap_statuses = dict(zip(_IMAP_ACCOUNTS, results[4:], strict=True))
     deps: dict[str, DepStatus] = {
-        # Stubs until their provider ships.
-        "apple_bridge": "ok",
-        "imap_glysk": "ok",
-        "imap_lopes": "ok",
-        "imap_whilesum": "ok",
-        # Real probes:
+        "apple_bridge": apple_status,
         "redis": redis_status,
         "openrouter": openrouter_status,
         "keychain": keychain_status,
         "vault": _check_vault(vault_provider),
         "idempotency_db": _ping_sqlite(idemp_conn),
         "telemetry_db": _ping_sqlite(tele_conn),
+        "agent_db": _ping_sqlite(agent_conn),
+        "imap_glysk": imap_statuses["glysk"],
+        "imap_lopes": imap_statuses["lopes"],
+        "imap_whilesum": imap_statuses["whilesum"],
     }
 
     return HealthResponse(

@@ -72,3 +72,16 @@ New topics get added when needed. Schema is versioned per topic via the envelope
 - Payloads are small. If you need to attach a large blob (full email body, full draft text), publish the metadata and an opaque ID; subscribers fetch via the bridge.
 - Every event is fire-and-forget. Subscribers must be idempotent — replays are possible if a subscriber reconnects mid-stream.
 - Topic hierarchies stay shallow. Three segments is the norm; four is the limit.
+
+
+---
+
+## Amendments — 2026-05-02 (P1a)
+
+### `agent.{name}.draft.pending` is now bridge-published
+
+The topic catalogue described `agent.{name}.draft.pending` as brain-published. With P1a the bridge owns the drafts table; the publish happens inside `POST /v1/agent/drafts` as a side effect of the row insert. The envelope's `publisher` field still carries the brain's actor (the auth.actor of the request), so subscribers see no behavioural change. The catalogue's "publisher" column is now a logical attribution (brain-originated) rather than a literal one (the bridge does the publish call).
+
+### `agent.{name}.draft.approved` payload + publisher
+
+Same logic: the bridge publishes `agent.{name}.draft.approved` from the PATCH handler when status flips to `approved`. Payload is `{draft_id, approved_by, approved_at}` per the catalogue. The envelope's `publisher` field carries the operator's actor (e.g. `cli.giuseppelopes`).

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OpenClaw CLU brain launchd job.
+
+  Runs as macOS user `giuseppelopes` (NOT `clu` — only the iMessage
+  relay runs as `clu`; brains run as the operator). The brain
+  subscribes to `imessage.received.clu` over the bridge's WebSocket
+  (loopback), runs LLM triage + draft, and publishes
+  `agent.clu.draft.pending` for the human-approval flow that lands
+  in a future session.
+
+  Pre-flight (operator, one-time):
+
+  1. Mint a brain token:
+       uv run --no-sync python scripts/mint-token.py \
+           --actor brain.clu \
+           --scopes llm:call,vault:read,vault:write,events:subscribe,events:publish,imessage:send
+     Save the plaintext (printed once); paste it into the
+     `BRAIN_TOKEN` placeholder below.
+
+  2. Make sure the bridge + Redis are running first. If you have the
+     Session 4 redis plist installed and the bridge plist installed
+     (a future session), launchd will start everything on boot. For
+     now the operator runs scripts/run-redis.sh + scripts/run-bridge.sh
+     in foreground.
+
+  NOT auto-installed by Session 9. To load (one-time):
+
+      cp ops/launchd/com.giuseppelopesme.openclaw.brain.clu.plist \
+         ~/Library/LaunchAgents/
+      launchctl load ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.brain.clu.plist
+
+  To unload:
+      launchctl unload ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.brain.clu.plist
+
+  Logs are written to /Users/giuseppelopes/.openclaw/clu.{out,err}.log
+  so Console.app and `tail -f` both work. The brain token is passed via
+  EnvironmentVariables; macOS plists are owned by the user, readable
+  only by them, so this is the cleanest place for the secret short of
+  pulling from Keychain (which would be a future refactor — same as
+  the relay's plist note from Session 7).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.giuseppelopesme.openclaw.brain.clu</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/giuseppelopes/Developer/OpenClaw_Bridge/scripts/run-clu.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/giuseppelopes/Developer/OpenClaw_Bridge</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/giuseppelopes/.openclaw/clu.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/giuseppelopes/.openclaw/clu.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+
+    <key>BRIDGE_URL</key>
+    <string>http://127.0.0.1:8788</string>
+
+    <key>STATE_DB_PATH</key>
+    <string>/Users/giuseppelopes/.openclaw/clu.state.db</string>
+
+    <!--
+      Replace the placeholder with the plaintext token from
+      scripts/mint-token.py. macOS launchd plists are user-readable
+      only; this avoids checking the secret into the repo.
+    -->
+    <key>BRAIN_TOKEN</key>
+    <string>__REPLACE_WITH_BRAIN_TOKEN__</string>
+  </dict>
+</dict>
+</plist>

@@ -45,8 +45,9 @@ access.log
 access.log.*
 tokens.dev.json
 
-# Generated docs
-docs/openapi-v1.yaml
+# docs/openapi-v1.yaml is committed (generated, but kept in git so the
+# typed brains_shared SDK ships with a known-good spec). The pre-commit
+# hook re-runs `tools/dump-openapi.py` and fails the commit if it drifts.
 
 # Claude Code local settings (per-machine; share .claude/settings.json instead)
 .claude/settings.local.json

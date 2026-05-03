@@ -15,6 +15,11 @@ Field summary:
   return `dependency_unavailable`.
 - `redis_host`, `redis_port`, `redis_db` — pub/sub + rate-limit storage.
   The password lives in Keychain (`provider.redis`), not in env.
+- `email_config_path` — path to `~/.openclaw/email.toml` (override with
+  `BRIDGE_EMAIL_CONFIG`). Loaded at startup; per-account passwords come
+  from Keychain `provider.email.{account}`.
+- `agent_db_path` — SQLite file backing the agent-drafts approval flow
+  (P1a). Schema in `migrations/agent_*.sql`.
 
 Tokens live in macOS Keychain only. The Session 1/2 transitional JSON
 fallback was removed in Session 3.
@@ -39,6 +44,8 @@ class Settings:
     redis_host: str
     redis_port: int
     redis_db: int
+    email_config_path: Path
+    agent_db_path: Path
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -66,4 +73,14 @@ class Settings:
             redis_host=os.environ.get("BRIDGE_REDIS_HOST", "127.0.0.1"),
             redis_port=int(os.environ.get("BRIDGE_REDIS_PORT", "6379")),
             redis_db=int(os.environ.get("BRIDGE_REDIS_DB", "0")),
+            email_config_path=Path(
+                os.path.expanduser(
+                    os.environ.get("BRIDGE_EMAIL_CONFIG", "~/.openclaw/email.toml"),
+                ),
+            ),
+            agent_db_path=Path(
+                os.path.expanduser(
+                    os.environ.get("BRIDGE_AGENT_DB", "~/.openclaw/agent.db"),
+                ),
+            ),
         )

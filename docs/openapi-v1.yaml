@@ -1,0 +1,1850 @@
+components:
+  schemas:
+    CalendarCreateRequest:
+      properties:
+        calendar:
+          minLength: 1
+          title: Calendar
+          type: string
+        end:
+          title: End
+          type: string
+        location:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Location
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+        start:
+          title: Start
+          type: string
+        title:
+          minLength: 1
+          title: Title
+          type: string
+      required:
+      - calendar
+      - title
+      - start
+      - end
+      title: CalendarCreateRequest
+      type: object
+    CalendarListResponse:
+      properties:
+        events:
+          items:
+            $ref: '#/components/schemas/_EventOut'
+          title: Events
+          type: array
+      required:
+      - events
+      title: CalendarListResponse
+      type: object
+    CalendarUpdateRequest:
+      properties:
+        end:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: End
+        location:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Location
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+        start:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Start
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+      title: CalendarUpdateRequest
+      type: object
+    ContactsSearchResponse:
+      properties:
+        contacts:
+          items:
+            $ref: '#/components/schemas/_ContactOut'
+          title: Contacts
+          type: array
+      required:
+      - contacts
+      title: ContactsSearchResponse
+      type: object
+    Deps:
+      properties:
+        agent_db:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Agent Db
+          type: string
+        apple_bridge:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Apple Bridge
+          type: string
+        idempotency_db:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Idempotency Db
+          type: string
+        imap_glysk:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Imap Glysk
+          type: string
+        imap_lopes:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Imap Lopes
+          type: string
+        imap_whilesum:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Imap Whilesum
+          type: string
+        keychain:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Keychain
+          type: string
+        openrouter:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Openrouter
+          type: string
+        redis:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Redis
+          type: string
+        telemetry_db:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Telemetry Db
+          type: string
+        vault:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Vault
+          type: string
+      required:
+      - redis
+      - apple_bridge
+      - imap_glysk
+      - imap_lopes
+      - imap_whilesum
+      - openrouter
+      - keychain
+      - vault
+      - idempotency_db
+      - telemetry_db
+      - agent_db
+      title: Deps
+      type: object
+    DraftCreateRequest:
+      properties:
+        agent:
+          enum:
+          - clu
+          - tron
+          - flynn
+          title: Agent
+          type: string
+        body:
+          minLength: 1
+          title: Body
+          type: string
+        channel:
+          default: imessage
+          enum:
+          - imessage
+          - email
+          title: Channel
+          type: string
+        in_reply_to_event_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: In Reply To Event Id
+        preview:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preview
+        to_handle:
+          minLength: 1
+          title: To Handle
+          type: string
+      required:
+      - agent
+      - to_handle
+      - body
+      title: DraftCreateRequest
+      type: object
+    DraftListResponse:
+      properties:
+        drafts:
+          items:
+            $ref: '#/components/schemas/_DraftOut'
+          title: Drafts
+          type: array
+      required:
+      - drafts
+      title: DraftListResponse
+      type: object
+    DraftPatchRequest:
+      properties:
+        approved_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approved By
+        body:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Body
+        reject_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reject Reason
+        status:
+          anyOf:
+          - enum:
+            - pending
+            - approved
+            - rejected
+            - sent
+            - send_failed
+            type: string
+          - type: 'null'
+          title: Status
+      title: DraftPatchRequest
+      type: object
+    EmailSendRequest:
+      properties:
+        account:
+          enum:
+          - glysk
+          - lopes
+          - whilesum
+          title: Account
+          type: string
+        bcc:
+          items:
+            type: string
+          title: Bcc
+          type: array
+        body_html:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Body Html
+        body_text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Body Text
+        cc:
+          items:
+            type: string
+          title: Cc
+          type: array
+        in_reply_to:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: In Reply To
+        subject:
+          minLength: 1
+          title: Subject
+          type: string
+        to:
+          items:
+            type: string
+          minItems: 1
+          title: To
+          type: array
+      required:
+      - account
+      - to
+      - subject
+      title: EmailSendRequest
+      type: object
+    EmailThreadDetailResponse:
+      properties:
+        id:
+          title: Id
+          type: string
+        messages:
+          items:
+            $ref: '#/components/schemas/_MessageOut'
+          title: Messages
+          type: array
+        subject:
+          title: Subject
+          type: string
+      required:
+      - id
+      - subject
+      - messages
+      title: EmailThreadDetailResponse
+      type: object
+    EmailThreadsListResponse:
+      properties:
+        threads:
+          items:
+            $ref: '#/components/schemas/_ThreadOut'
+          title: Threads
+          type: array
+      required:
+      - threads
+      title: EmailThreadsListResponse
+      type: object
+    EventPublishRequest:
+      properties:
+        payload:
+          additionalProperties: true
+          title: Payload
+          type: object
+        topic:
+          maxLength: 200
+          minLength: 1
+          title: Topic
+          type: string
+        ttl_s:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Ttl S
+      required:
+      - topic
+      title: EventPublishRequest
+      type: object
+    EventPublishResponse:
+      properties:
+        event_id:
+          title: Event Id
+          type: string
+        published_at:
+          title: Published At
+          type: string
+      required:
+      - event_id
+      - published_at
+      title: EventPublishResponse
+      type: object
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          title: Detail
+          type: array
+      title: HTTPValidationError
+      type: object
+    HealthResponse:
+      properties:
+        deps:
+          $ref: '#/components/schemas/Deps'
+        status:
+          enum:
+          - ok
+          - degraded
+          - down
+          title: Status
+          type: string
+        uptime_s:
+          title: Uptime S
+          type: integer
+        version:
+          title: Version
+          type: string
+      required:
+      - status
+      - version
+      - uptime_s
+      - deps
+      title: HealthResponse
+      type: object
+    IMessageInboundRequest:
+      properties:
+        agent:
+          enum:
+          - clu
+          - tron
+          - flynn
+          title: Agent
+          type: string
+        body:
+          minLength: 1
+          title: Body
+          type: string
+        chat_guid:
+          minLength: 1
+          title: Chat Guid
+          type: string
+        from:
+          minLength: 1
+          title: From
+          type: string
+        received_at:
+          minLength: 1
+          title: Received At
+          type: string
+      required:
+      - agent
+      - from
+      - body
+      - received_at
+      - chat_guid
+      title: IMessageInboundRequest
+      type: object
+    IMessageInboundResponse:
+      properties:
+        event_id:
+          title: Event Id
+          type: string
+        received:
+          title: Received
+          type: boolean
+      required:
+      - received
+      - event_id
+      title: IMessageInboundResponse
+      type: object
+    IMessageSendRequest:
+      properties:
+        body:
+          minLength: 1
+          title: Body
+          type: string
+        from:
+          enum:
+          - clu
+          - tron
+          - flynn
+          - main
+          title: From
+          type: string
+        service:
+          default: iMessage
+          enum:
+          - iMessage
+          - SMS
+          title: Service
+          type: string
+        to:
+          minLength: 1
+          title: To
+          type: string
+      required:
+      - from
+      - to
+      - body
+      title: IMessageSendRequest
+      type: object
+    IMessageSentRequest:
+      properties:
+        agent:
+          enum:
+          - clu
+          - tron
+          - flynn
+          title: Agent
+          type: string
+        body:
+          minLength: 1
+          title: Body
+          type: string
+        error_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Code
+        error_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Message
+        message_id:
+          minLength: 1
+          title: Message Id
+          type: string
+        sent_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sent At
+        status:
+          enum:
+          - success
+          - failed
+          title: Status
+          type: string
+        to:
+          minLength: 1
+          title: To
+          type: string
+      required:
+      - agent
+      - message_id
+      - to
+      - body
+      - status
+      title: IMessageSentRequest
+      type: object
+    IMessageSentResponse:
+      properties:
+        acknowledged:
+          title: Acknowledged
+          type: boolean
+        event_id:
+          title: Event Id
+          type: string
+      required:
+      - acknowledged
+      - event_id
+      title: IMessageSentResponse
+      type: object
+    LLMCompleteRequest:
+      properties:
+        max_tokens:
+          default: 1024
+          maximum: 32000.0
+          minimum: 1.0
+          title: Max Tokens
+          type: integer
+        messages:
+          items:
+            $ref: '#/components/schemas/_Message'
+          minItems: 1
+          title: Messages
+          type: array
+        model_hint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model Hint
+        provider_hint:
+          default: auto
+          enum:
+          - auto
+          - local
+          - openrouter
+          title: Provider Hint
+          type: string
+        response_format:
+          default: text
+          enum:
+          - text
+          - json
+          title: Response Format
+          type: string
+        task_class:
+          enum:
+          - triage
+          - classify
+          - reason
+          - draft
+          - summarise
+          title: Task Class
+          type: string
+        temperature:
+          default: 0.2
+          maximum: 2.0
+          minimum: 0.0
+          title: Temperature
+          type: number
+      required:
+      - task_class
+      - messages
+      title: LLMCompleteRequest
+      type: object
+    LLMCompleteResponse:
+      properties:
+        content:
+          title: Content
+          type: string
+        latency_ms:
+          title: Latency Ms
+          type: integer
+        model:
+          title: Model
+          type: string
+        provider:
+          title: Provider
+          type: string
+        usage:
+          $ref: '#/components/schemas/_UsageOut'
+      required:
+      - provider
+      - model
+      - content
+      - usage
+      - latency_ms
+      title: LLMCompleteResponse
+      type: object
+    RemindersCreateRequest:
+      properties:
+        due_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Due Date
+        list:
+          minLength: 1
+          title: List
+          type: string
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+        title:
+          minLength: 1
+          title: Title
+          type: string
+      required:
+      - list
+      - title
+      title: RemindersCreateRequest
+      type: object
+    RemindersListResponse:
+      properties:
+        reminders:
+          items:
+            $ref: '#/components/schemas/_ReminderOut'
+          title: Reminders
+          type: array
+      required:
+      - reminders
+      title: RemindersListResponse
+      type: object
+    RemindersUpdateRequest:
+      properties:
+        completed:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Completed
+        due_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Due Date
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+      title: RemindersUpdateRequest
+      type: object
+    ValidationError:
+      properties:
+        ctx:
+          title: Context
+          type: object
+        input:
+          title: Input
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          title: Location
+          type: array
+        msg:
+          title: Message
+          type: string
+        type:
+          title: Error Type
+          type: string
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+      type: object
+    VaultReadResponse:
+      properties:
+        content:
+          title: Content
+          type: string
+        frontmatter:
+          additionalProperties: true
+          title: Frontmatter
+          type: object
+        modified_at:
+          title: Modified At
+          type: string
+        path:
+          title: Path
+          type: string
+        size:
+          title: Size
+          type: integer
+      required:
+      - path
+      - content
+      - frontmatter
+      - size
+      - modified_at
+      title: VaultReadResponse
+      type: object
+    VaultWriteRequest:
+      properties:
+        content:
+          default: ''
+          title: Content
+          type: string
+        frontmatter:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Frontmatter
+        mode:
+          enum:
+          - create
+          - append
+          - replace
+          title: Mode
+          type: string
+        path:
+          minLength: 1
+          title: Path
+          type: string
+      required:
+      - path
+      - mode
+      title: VaultWriteRequest
+      type: object
+    WhoamiResponse:
+      properties:
+        actor:
+          title: Actor
+          type: string
+        scopes:
+          items:
+            type: string
+          title: Scopes
+          type: array
+      required:
+      - actor
+      - scopes
+      title: WhoamiResponse
+      type: object
+    _ContactOut:
+      properties:
+        emails:
+          items:
+            type: string
+          title: Emails
+          type: array
+        name:
+          title: Name
+          type: string
+        phones:
+          items:
+            type: string
+          title: Phones
+          type: array
+      required:
+      - name
+      - phones
+      - emails
+      title: _ContactOut
+      type: object
+    _DraftOut:
+      properties:
+        agent:
+          title: Agent
+          type: string
+        approved_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approved At
+        approved_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approved By
+        body:
+          title: Body
+          type: string
+        channel:
+          title: Channel
+          type: string
+        created_at:
+          title: Created At
+          type: string
+        dispatch_message_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dispatch Message Id
+        draft_id:
+          title: Draft Id
+          type: string
+        in_reply_to_event_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: In Reply To Event Id
+        last_modified_at:
+          title: Last Modified At
+          type: string
+        last_send_error_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Send Error Code
+        last_send_error_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Send Error Message
+        preview:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preview
+        publisher:
+          title: Publisher
+          type: string
+        reject_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reject Reason
+        sent_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sent At
+        status:
+          title: Status
+          type: string
+        to_handle:
+          title: To Handle
+          type: string
+      required:
+      - draft_id
+      - agent
+      - channel
+      - to_handle
+      - body
+      - status
+      - created_at
+      - last_modified_at
+      - publisher
+      title: _DraftOut
+      type: object
+    _EventOut:
+      properties:
+        calendar:
+          title: Calendar
+          type: string
+        end:
+          title: End
+          type: string
+        id:
+          title: Id
+          type: string
+        location:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Location
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+        start:
+          title: Start
+          type: string
+        title:
+          title: Title
+          type: string
+      required:
+      - id
+      - title
+      - start
+      - end
+      - calendar
+      title: _EventOut
+      type: object
+    _Message:
+      properties:
+        content:
+          title: Content
+          type: string
+        role:
+          enum:
+          - system
+          - user
+          - assistant
+          title: Role
+          type: string
+      required:
+      - role
+      - content
+      title: _Message
+      type: object
+    _MessageOut:
+      properties:
+        body_html:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Body Html
+        body_text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Body Text
+        cc:
+          items:
+            type: string
+          title: Cc
+          type: array
+        date:
+          title: Date
+          type: string
+        from:
+          title: From
+          type: string
+        id:
+          title: Id
+          type: string
+        in_reply_to:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: In Reply To
+        message_id:
+          title: Message Id
+          type: string
+        references:
+          items:
+            type: string
+          title: References
+          type: array
+        subject:
+          title: Subject
+          type: string
+        to:
+          items:
+            type: string
+          title: To
+          type: array
+      required:
+      - id
+      - message_id
+      - from
+      - to
+      - cc
+      - subject
+      - date
+      title: _MessageOut
+      type: object
+    _ReminderOut:
+      properties:
+        completed:
+          title: Completed
+          type: boolean
+        due_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Due Date
+        id:
+          title: Id
+          type: string
+        list:
+          title: List
+          type: string
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+        title:
+          title: Title
+          type: string
+      required:
+      - id
+      - title
+      - list
+      - completed
+      title: _ReminderOut
+      type: object
+    _ThreadOut:
+      properties:
+        id:
+          title: Id
+          type: string
+        latest_at:
+          title: Latest At
+          type: string
+        message_count:
+          title: Message Count
+          type: integer
+        participants:
+          items:
+            type: string
+          title: Participants
+          type: array
+        snippet:
+          title: Snippet
+          type: string
+        subject:
+          title: Subject
+          type: string
+      required:
+      - id
+      - subject
+      - participants
+      - message_count
+      - latest_at
+      - snippet
+      title: _ThreadOut
+      type: object
+    _UsageOut:
+      properties:
+        completion_tokens:
+          title: Completion Tokens
+          type: integer
+        cost_usd:
+          title: Cost Usd
+          type: number
+        prompt_tokens:
+          title: Prompt Tokens
+          type: integer
+      required:
+      - prompt_tokens
+      - completion_tokens
+      - cost_usd
+      title: _UsageOut
+      type: object
+info:
+  title: OpenClaw Bridge
+  version: 1.0.0
+openapi: 3.1.0
+paths:
+  /v1/agent/drafts:
+    get:
+      operationId: list_drafts_v1_agent_drafts_get
+      parameters:
+      - in: query
+        name: agent
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - clu
+            - tron
+            - flynn
+            type: string
+          - type: 'null'
+          title: Agent
+      - in: query
+        name: status
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - pending
+            - approved
+            - rejected
+            - sent
+            - send_failed
+            type: string
+          - type: 'null'
+          title: Status
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 200
+          minimum: 1
+          title: Limit
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftListResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Drafts
+      tags:
+      - agent
+    post:
+      operationId: create_draft_v1_agent_drafts_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create Draft
+      tags:
+      - agent
+  /v1/agent/drafts/{draft_id}:
+    get:
+      operationId: get_draft_v1_agent_drafts__draft_id__get
+      parameters:
+      - in: path
+        name: draft_id
+        required: true
+        schema:
+          minLength: 1
+          title: Draft Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_DraftOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Draft
+      tags:
+      - agent
+    patch:
+      operationId: patch_draft_v1_agent_drafts__draft_id__patch
+      parameters:
+      - in: path
+        name: draft_id
+        required: true
+        schema:
+          minLength: 1
+          title: Draft Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftPatchRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_DraftOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Patch Draft
+      tags:
+      - agent
+  /v1/auth/whoami:
+    get:
+      operationId: whoami_v1_auth_whoami_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhoamiResponse'
+          description: Successful Response
+      summary: Whoami
+      tags:
+      - auth
+  /v1/calendar/events:
+    get:
+      operationId: list_events_v1_calendar_events_get
+      parameters:
+      - in: query
+        name: from
+        required: true
+        schema:
+          minLength: 1
+          title: From
+          type: string
+      - in: query
+        name: to
+        required: true
+        schema:
+          minLength: 1
+          title: To
+          type: string
+      - in: query
+        name: calendar
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Calendar
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarListResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Events
+      tags:
+      - calendar
+    post:
+      operationId: create_event_v1_calendar_events_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalendarCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create Event
+      tags:
+      - calendar
+  /v1/calendar/events/{event_id}:
+    delete:
+      operationId: delete_event_v1_calendar_events__event_id__delete
+      parameters:
+      - in: path
+        name: event_id
+        required: true
+        schema:
+          minLength: 1
+          title: Event Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                title: Response Delete Event V1 Calendar Events  Event Id  Delete
+                type: object
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Delete Event
+      tags:
+      - calendar
+    patch:
+      operationId: update_event_v1_calendar_events__event_id__patch
+      parameters:
+      - in: path
+        name: event_id
+        required: true
+        schema:
+          minLength: 1
+          title: Event Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalendarUpdateRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                title: Response Update Event V1 Calendar Events  Event Id  Patch
+                type: object
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Update Event
+      tags:
+      - calendar
+  /v1/contacts/search:
+    get:
+      operationId: search_contacts_v1_contacts_search_get
+      parameters:
+      - in: query
+        name: q
+        required: true
+        schema:
+          minLength: 1
+          title: Q
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 10
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactsSearchResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Search Contacts
+      tags:
+      - contacts
+  /v1/email/send:
+    post:
+      operationId: send_email_v1_email_send_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailSendRequest'
+        required: true
+      responses:
+        '202':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Send Email
+      tags:
+      - email
+  /v1/email/threads:
+    get:
+      operationId: list_threads_v1_email_threads_get
+      parameters:
+      - in: query
+        name: account
+        required: true
+        schema:
+          enum:
+          - glysk
+          - lopes
+          - whilesum
+          title: Account
+          type: string
+      - in: query
+        name: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Query
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: before
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Before
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailThreadsListResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Threads
+      tags:
+      - email
+  /v1/email/threads/{thread_id}:
+    get:
+      operationId: get_thread_v1_email_threads__thread_id__get
+      parameters:
+      - in: path
+        name: thread_id
+        required: true
+        schema:
+          minLength: 1
+          title: Thread Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailThreadDetailResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Thread
+      tags:
+      - email
+  /v1/events/publish:
+    post:
+      operationId: events_publish_v1_events_publish_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventPublishRequest'
+        required: true
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventPublishResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Events Publish
+      tags:
+      - events
+  /v1/health:
+    get:
+      operationId: health_v1_health_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+          description: Successful Response
+      summary: Health
+      tags:
+      - health
+  /v1/imessage/inbound:
+    post:
+      operationId: imessage_inbound_v1_imessage_inbound_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IMessageInboundRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IMessageInboundResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Imessage Inbound
+      tags:
+      - imessage
+  /v1/imessage/outbox:
+    get:
+      operationId: imessage_outbox_v1_imessage_outbox_get
+      parameters:
+      - in: query
+        name: agent
+        required: true
+        schema:
+          enum:
+          - clu
+          - tron
+          - flynn
+          title: Agent
+          type: string
+      - in: query
+        name: timeout_s
+        required: false
+        schema:
+          default: 25
+          maximum: 60
+          minimum: 0
+          title: Timeout S
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Imessage Outbox
+      tags:
+      - imessage
+  /v1/imessage/send:
+    post:
+      operationId: imessage_send_v1_imessage_send_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IMessageSendRequest'
+        required: true
+      responses:
+        '202':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Imessage Send
+      tags:
+      - imessage
+  /v1/imessage/sent:
+    post:
+      operationId: imessage_sent_v1_imessage_sent_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IMessageSentRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IMessageSentResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Imessage Sent
+      tags:
+      - imessage
+  /v1/llm/complete:
+    post:
+      operationId: llm_complete_v1_llm_complete_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LLMCompleteRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LLMCompleteResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Llm Complete
+      tags:
+      - llm
+  /v1/reminders:
+    get:
+      operationId: list_reminders_v1_reminders_get
+      parameters:
+      - in: query
+        name: list
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: List
+      - in: query
+        name: completed
+        required: false
+        schema:
+          default: false
+          title: Completed
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemindersListResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Reminders
+      tags:
+      - reminders
+    post:
+      operationId: create_reminder_v1_reminders_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemindersCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create Reminder
+      tags:
+      - reminders
+  /v1/reminders/{reminder_id}:
+    delete:
+      operationId: delete_reminder_v1_reminders__reminder_id__delete
+      parameters:
+      - in: path
+        name: reminder_id
+        required: true
+        schema:
+          minLength: 1
+          title: Reminder Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                title: Response Delete Reminder V1 Reminders  Reminder Id  Delete
+                type: object
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Delete Reminder
+      tags:
+      - reminders
+    patch:
+      operationId: update_reminder_v1_reminders__reminder_id__patch
+      parameters:
+      - in: path
+        name: reminder_id
+        required: true
+        schema:
+          minLength: 1
+          title: Reminder Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemindersUpdateRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                title: Response Update Reminder V1 Reminders  Reminder Id  Patch
+                type: object
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Update Reminder
+      tags:
+      - reminders
+  /v1/vault/read:
+    get:
+      operationId: vault_read_v1_vault_read_get
+      parameters:
+      - in: query
+        name: path
+        required: true
+        schema:
+          minLength: 1
+          title: Path
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VaultReadResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Vault Read
+      tags:
+      - vault
+  /v1/vault/write:
+    post:
+      operationId: vault_write_v1_vault_write_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VaultWriteRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Vault Write
+      tags:
+      - vault

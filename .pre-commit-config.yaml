@@ -41,6 +41,13 @@ repos:
         types: [python]
         pass_filenames: false
 
+      - id: openapi-drift
+        name: openapi-v1.yaml is in sync with the bridge code
+        entry: scripts/check-openapi-drift.sh
+        language: system
+        types: [python]
+        pass_filenames: false
+
       - id: pytest
         name: pytest (full suite)
         entry: uv run --no-sync pytest

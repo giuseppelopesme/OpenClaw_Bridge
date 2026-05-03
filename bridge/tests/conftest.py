@@ -43,6 +43,12 @@ def pytest_configure(config: pytest.Config) -> None:
         "macos_keychain: integration test that touches the real macOS Keychain. "
         "Skipped by default; run with `-m macos_keychain` to opt in.",
     )
+    config.addinivalue_line(
+        "markers",
+        "macos_apple: integration test that runs real osascript against "
+        "Calendar, Reminders, or Contacts. Requires TCC permissions on the "
+        "host. Skipped by default; run with `-m macos_apple` to opt in.",
+    )
 
 
 def pytest_collection_modifyitems(
@@ -52,9 +58,12 @@ def pytest_collection_modifyitems(
     if config.getoption("-m"):
         return
     skip_macos = pytest.mark.skip(reason="macos_keychain integration test (opt-in)")
+    skip_apple = pytest.mark.skip(reason="macos_apple integration test (opt-in)")
     for item in items:
         if "macos_keychain" in item.keywords:
             item.add_marker(skip_macos)
+        if "macos_apple" in item.keywords:
+            item.add_marker(skip_apple)
 
 
 @pytest.fixture(autouse=True)
@@ -68,6 +77,42 @@ def fake_keychain() -> Iterator[FakeKeyring]:
         _fake_backend.reset()
 
 
+@pytest.fixture(autouse=True)
+def fake_apple_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mock the osascript probe used by the apple_bridge health check.
+
+    The default returns "true" so /v1/health is "ok" without TCC prompts.
+    Tests that need to exercise apple-down scenarios re-patch
+    `bridge.routes.health.run_osascript` directly.
+
+    The opt-in `macos_apple` integration tests bypass this because they
+    construct providers with the real runner; this fixture only swaps the
+    health probe's import reference.
+    """
+    from bridge.routes import health as health_module
+
+    async def _ok(*_args: object, **_kwargs: object) -> str:
+        return "true"
+
+    monkeypatch.setattr(health_module, "run_osascript", _ok)
+
+
+@pytest.fixture(autouse=True)
+def fake_imap_healthcheck(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mock the IMAP healthcheck used by the per-account email health
+    probe. The default returns "ok" — real IMAP servers are not contacted
+    in unit tests. Tests that exercise email-down scenarios install
+    explicit fake providers on `app.state.email_imap_providers` and rely
+    on the route-level `_get_imap` to surface the missing-provider 502.
+    """
+    from bridge.routes import health as health_module
+
+    async def _ok(*_args: object, **_kwargs: object) -> str:
+        return "ok"
+
+    monkeypatch.setattr(health_module, "_check_imap", _ok)
+
+
 @pytest.fixture
 def tokens(fake_keychain: FakeKeyring) -> list[TokenFixture]:
     """Pre-populate the fake Keychain with a couple of canned identities and
@@ -79,6 +124,47 @@ def tokens(fake_keychain: FakeKeyring) -> list[TokenFixture]:
             plain="dev-token-clu",
             actor="brain.clu",
             scopes=("llm:call", "vault:read", "vault:write"),
+        ),
+        TokenFixture(
+            plain="dev-token-apple",
+            actor="cli.apple",
+            scopes=(
+                "apple:calendar:read",
+                "apple:calendar:write",
+                "apple:reminders:read",
+                "apple:reminders:write",
+                "apple:contacts:read",
+            ),
+        ),
+        TokenFixture(
+            plain="dev-token-email",
+            actor="cli.email",
+            scopes=("email:read", "email:send"),
+        ),
+        TokenFixture(
+            plain="dev-token-imessage-send",
+            actor="brain.test",
+            scopes=("imessage:send",),
+        ),
+        TokenFixture(
+            plain="dev-token-imessage-relay",
+            actor="relay.clu",
+            scopes=("imessage:relay",),
+        ),
+        TokenFixture(
+            plain="dev-token-agent-write",
+            actor="brain.clu-write-only",
+            scopes=("agent:drafts:write",),
+        ),
+        TokenFixture(
+            plain="dev-token-agent-read",
+            actor="cli.viewer",
+            scopes=("agent:drafts:read",),
+        ),
+        TokenFixture(
+            plain="dev-token-agent-approve",
+            actor="cli.giuseppelopes",
+            scopes=("agent:drafts:read", "agent:drafts:approve"),
         ),
         TokenFixture(plain="dev-token-empty", actor="cli.test", scopes=()),
     ]
@@ -119,6 +205,12 @@ def settings(tmp_path: Path, vault_root: Path, tokens: list[TokenFixture]) -> Se
         redis_host="127.0.0.1",
         redis_port=6379,
         redis_db=0,
+        # Tests do not configure email accounts; email routes therefore
+        # return 502 dependency_unavailable until a test installs its
+        # own provider on `app.state.email_imap_providers` /
+        # `email_smtp_providers`.
+        email_config_path=tmp_path / "email.toml",
+        agent_db_path=tmp_path / "agent.db",
     )
 
 

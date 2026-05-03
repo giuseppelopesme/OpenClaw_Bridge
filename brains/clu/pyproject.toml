@@ -1,7 +1,7 @@
 [project]
 name = "openclaw-brain-clu"
-version = "0.0.0"
-description = "CLU brain (placeholder — implemented at build step 9)."
+version = "0.1.0"
+description = "CLU brain — first event subscriber, triage + draft loop on imessage.received.clu."
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "openclaw-brains-shared",

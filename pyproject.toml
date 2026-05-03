@@ -37,12 +37,27 @@ dev = [
     # Hermetic Redis for tests — supports pubsub and the EVAL-based rate
     # limiter Lua script via the [lua] extra (lupa).
     "fakeredis[lua]>=2.20",
+    # SDK regeneration. Generated output is committed into
+    # `brains/shared/src/brains_shared/_generated/`; this dep exists only
+    # so `tools/regen-sdk.sh` works on the dev box.
+    "openapi-python-client>=0.21",
+    # PyYAML is a transitive of `python-frontmatter` already; declare it
+    # explicitly here because `tools/dump-openapi.py` is a dev-only tool
+    # that needs the import at build-time, not run-time.
+    "pyyaml>=6.0",
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py313"
-extend-exclude = ["docs", ".venv"]
+extend-exclude = [
+    "docs",
+    ".venv",
+    # Generated SDK output (re-rendered by tools/regen-sdk.sh). Linting
+    # generated code adds churn without value; mypy --strict still
+    # checks the generated tree for type-correctness.
+    "brains/shared/src/brains_shared/_generated",
+]
 
 [tool.ruff.lint]
 # Pragmatic, opinionated baseline. Tighten as we grow.
@@ -67,6 +82,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "ANN", "S105", "S106", "PLC0415"]
+# CLI scripts emit human output; print() is the right primitive there.
+"scripts/**" = ["T201"]
 
 # Package-boundary enforcement is done via the `scripts/check-boundaries.sh`
 # CI step rather than ruff's banned-api (which can't express directory-scoped
@@ -128,4 +145,10 @@ addopts = [
 ]
 filterwarnings = [
     "error",
+    # pytest-asyncio 1.3.0 + Python 3.13 leaks an event loop / self-pipe
+    # socket inside its `_temporary_event_loop_policy` setup. The
+    # ResourceWarning surfaces through pytest's unraisable plugin and
+    # would otherwise mark the next async-fixture test as ERROR. Not our
+    # code; ignore until pytest-asyncio ships a fix.
+    "ignore::pytest.PytestUnraisableExceptionWarning",
 ]

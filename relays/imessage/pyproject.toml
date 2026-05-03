@@ -1,9 +1,13 @@
 [project]
 name = "openclaw-relay-imessage"
-version = "0.0.0"
-description = "OpenClaw iMessage relay (placeholder — implemented at build step 7)."
+version = "0.1.0"
+description = "OpenClaw iMessage relay — polls chat.db, sends via Messages.app, talks to the bridge over loopback."
 requires-python = ">=3.13,<3.14"
-dependencies = []
+dependencies = [
+    # Sync HTTP client for the bridge_client. The relay loop is sync;
+    # we deliberately do not pull in async machinery for ~200 LOC.
+    "httpx>=0.28",
+]
 
 [build-system]
 requires = ["uv_build>=0.11,<0.12"]

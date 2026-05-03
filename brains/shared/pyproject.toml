@@ -1,9 +1,16 @@
 [project]
 name = "openclaw-brains-shared"
-version = "0.0.0"
-description = "OpenClaw shared brain SDK (placeholder — generated at build step 8)."
+version = "0.1.0"
+description = "OpenClaw shared brain SDK — typed HTTP client + helpers per docs/repo-layout.md."
 requires-python = ">=3.13,<3.14"
-dependencies = []
+dependencies = [
+    # The generated client (under brains_shared/_generated/) uses httpx
+    # for HTTP and attrs for its model classes; the eventbus helper
+    # uses websockets.
+    "httpx>=0.28",
+    "attrs>=23.0",
+    "websockets>=14.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.11,<0.12"]

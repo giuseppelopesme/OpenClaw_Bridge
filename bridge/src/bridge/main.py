@@ -13,12 +13,16 @@ App-state surface (set in lifespan, read by routes/middleware):
 - `token_store`           — `auth.TokenStore` backed by macOS Keychain
 - `idempotency_conn`      — sqlite3 connection backing the Idempotency middleware
 - `telemetry_conn`        — sqlite3 connection backing LLM call telemetry
+- `agent_conn`            — sqlite3 connection backing the agent-drafts table (P1a)
 - `rate_limiter`          — Redis-backed token-bucket store (Session 4)
 - `vault_provider`        — bound to `OBSIDIAN_VAULT` (or unconfigured)
 - `openrouter_provider`   — OpenRouter HTTP client (shared `httpx.AsyncClient`)
 - `llm_router`            — task_class → provider routing
 - `redis_client`          — `redis.asyncio.Redis` shared by publisher + limiter
 - `event_publisher`       — `EventPublisher` for routes that emit events
+- `email_config`          — `EmailConfig` parsed from `email.toml`
+- `email_imap_providers`  — `dict[str, IMAPProvider]` keyed by account name
+- `email_smtp_providers`  — `dict[str, SMTPProvider]` keyed by account name
 - `_http_client`          — module-private; closed on shutdown
 """
 
@@ -32,7 +36,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 
-from bridge import __version__, errors
+from bridge import __version__, errors, keychain
 from bridge.auth import TokenStore
 from bridge.config import Settings
 from bridge.errors import DependencyUnavailable
@@ -40,14 +44,29 @@ from bridge.eventbus import EventPublisher, build_redis_client
 from bridge.idempotency import IdempotencyMiddleware
 from bridge.middleware import AccessLogMiddleware, RequestIDMiddleware
 from bridge.migrations import open_with_migrations
+from bridge.providers.apple.calendar import CalendarProvider
+from bridge.providers.apple.contacts import ContactsProvider
+from bridge.providers.apple.reminders import RemindersProvider
+from bridge.providers.email import (
+    EmailConfig,
+    IMAPProvider,
+    SMTPProvider,
+    load_email_config,
+)
 from bridge.providers.llm.openrouter import OpenRouterProvider
 from bridge.providers.llm.router import LLMRouter
 from bridge.providers.vault import VaultProvider
 from bridge.ratelimit import RateLimiter
+from bridge.routes import agent as agent_routes
 from bridge.routes import auth as auth_routes
+from bridge.routes import calendar as calendar_routes
+from bridge.routes import contacts as contacts_routes
+from bridge.routes import email as email_routes
 from bridge.routes import events as events_routes
 from bridge.routes import health as health_routes
+from bridge.routes import imessage as imessage_routes
 from bridge.routes import llm as llm_routes
+from bridge.routes import reminders as reminders_routes
 from bridge.routes import vault as vault_routes
 
 
@@ -71,7 +90,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             cfg.telemetry_db_path,
             prefix="telemetry",
         )
+        app.state.agent_conn = open_with_migrations(
+            cfg.agent_db_path,
+            prefix="agent",
+        )
         app.state.vault_provider = VaultProvider(cfg.vault_root)
+
+        # Apple providers — stateless wrappers around the osascript runner.
+        # Constructed once; the integration tests opt-in to the real binary
+        # via the `macos_apple` pytest marker.
+        app.state.calendar_provider = CalendarProvider()
+        app.state.reminders_provider = RemindersProvider()
+        app.state.contacts_provider = ContactsProvider()
+
+        # Email providers — one IMAP + one SMTP per account, built from
+        # email.toml + Keychain. Missing config or missing password →
+        # the provider entry is absent and routes return 502. Per-account
+        # health probes still report "down" for these accounts so the
+        # operator sees the gap on /v1/health.
+        email_cfg: EmailConfig = load_email_config(cfg.email_config_path)
+        imap_providers: dict[str, IMAPProvider] = {}
+        smtp_providers: dict[str, SMTPProvider] = {}
+        for name, account in email_cfg.accounts.items():
+            cred = keychain.get_credential(f"provider.email.{name}")
+            if cred is None or not cred.token:
+                logger.warning(
+                    "email_account_password_missing",
+                    extra={"account": name, "hint": f"set Keychain provider.email.{name}"},
+                )
+                continue
+            imap_providers[name] = IMAPProvider(account, cred.token)
+            smtp_providers[name] = SMTPProvider(account, cred.token)
+        app.state.email_config = email_cfg
+        app.state.email_imap_providers = imap_providers
+        app.state.email_smtp_providers = smtp_providers
 
         # Redis: client + publisher + Redis-backed rate limiter. If the
         # Keychain password is missing we boot anyway, with `redis_client`
@@ -134,7 +186,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             yield
         finally:
-            for conn in (app.state.idempotency_conn, app.state.telemetry_conn):
+            for conn in (
+                app.state.idempotency_conn,
+                app.state.telemetry_conn,
+                app.state.agent_conn,
+            ):
                 if conn is not None:
                     conn.close()
             await http_client.aclose()
@@ -163,6 +219,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(vault_routes.router)
     app.include_router(llm_routes.router)
     app.include_router(events_routes.router)
+    app.include_router(calendar_routes.router)
+    app.include_router(reminders_routes.router)
+    app.include_router(contacts_routes.router)
+    app.include_router(email_routes.router)
+    app.include_router(imessage_routes.router)
+    app.include_router(agent_routes.router)
 
     return app
 

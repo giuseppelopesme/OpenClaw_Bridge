@@ -17,8 +17,18 @@ import argparse
 import secrets
 import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
-from bridge import keychain
+# Self-bootstrap workspace src dirs onto sys.path so this script runs
+# without an explicit `PYTHONPATH=bridge/src` prefix. Workaround for the
+# uv 0.11.x hidden-`.pth` interaction with Python 3.13's site.py
+# (documented in Session 1's SESSION-NOTES.md).
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_BRIDGE_SRC = _REPO_ROOT / "bridge" / "src"
+if str(_BRIDGE_SRC) not in sys.path:
+    sys.path.insert(0, str(_BRIDGE_SRC))
+
+from bridge import keychain  # noqa: E402
 
 DEFAULT_GRACE_HOURS = 24
 

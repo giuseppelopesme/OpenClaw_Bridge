@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OpenClaw iMessage relay (CLU) launchd job.
+
+  Runs as macOS user `clu`, NOT `giuseppelopes`. CLU has its own
+  ~/Library/Messages/chat.db (per-user) and its own iMessage account
+  signed-in via Messages.app.
+
+  Pre-flight (operator, one-time):
+
+  1. macOS user `clu` exists. Create via System Settings → Users & Groups
+     → Add User if not.
+  2. Sign into iMessage as that user (Messages.app).
+  3. Grant Full Disk Access to /usr/bin/python3 (or the relay's actual
+     binary) so it can read chat.db. System Settings → Privacy & Security
+     → Full Disk Access → Add → /usr/bin/python3.
+  4. Grant Automation control of Messages.app on first send. The
+     "Terminal/Python wants to control Messages.app" prompt fires the
+     first time; click OK.
+  5. Mint a relay token on the bridge host:
+        uv run --no-sync python scripts/mint-token.py \
+            --actor relay.clu --scopes imessage:relay
+     Save the plaintext (it is printed once) and substitute it in below
+     where the placeholder is.
+
+  NOT auto-installed by Session 7. To load (one-time, from the `clu`
+  account):
+
+      cp ops/launchd/com.giuseppelopesme.openclaw.relay.clu.plist \
+         ~/Library/LaunchAgents/
+      launchctl load ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist
+
+  To unload:
+      launchctl unload ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist
+
+  Logs are written to /Users/clu/.openclaw/relay.clu.{out,err}.log so
+  Console.app and `tail -f` both work. The relay token is passed via
+  EnvironmentVariables; macOS plists are owned by the user, readable
+  only by them, so this is the cleanest place for the secret short of
+  pulling from Keychain (which would be a future refactor).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.giuseppelopesme.openclaw.relay.clu</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/giuseppelopes/Developer/OpenClaw_Bridge/scripts/run-relay.sh</string>
+    <string>clu</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/giuseppelopes/Developer/OpenClaw_Bridge</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/clu/.openclaw/relay.clu.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/clu/.openclaw/relay.clu.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+
+    <key>AGENT_NAME</key>
+    <string>clu</string>
+
+    <key>BRIDGE_URL</key>
+    <string>http://127.0.0.1:8788</string>
+
+    <!--
+      Replace the placeholder with the plaintext token from
+      scripts/mint-token.py. macOS launchd plists are user-readable
+      only; this avoids checking the secret into the repo.
+    -->
+    <key>RELAY_TOKEN</key>
+    <string>__REPLACE_WITH_RELAY_TOKEN__</string>
+  </dict>
+</dict>
+</plist>

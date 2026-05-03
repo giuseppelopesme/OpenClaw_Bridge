@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 EXPECTED_DEPS = {
@@ -16,6 +17,8 @@ EXPECTED_DEPS = {
     "vault",
     "idempotency_db",
     "telemetry_db",
+    # Added in P1a:
+    "agent_db",
 }
 
 
@@ -84,4 +87,22 @@ def test_health_telemetry_db_down_when_connection_closed(client: TestClient) -> 
     resp = client.get("/v1/health")
     body = resp.json()
     assert body["deps"]["telemetry_db"] == "down"
+    assert body["status"] == "down"
+
+
+def test_health_apple_bridge_down_pushes_overall_down(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Apple is critical: a runner failure marks status down."""
+    from bridge.errors import DependencyUnavailable
+    from bridge.routes import health as health_module
+
+    async def _explode(*_args: object, **_kwargs: object) -> str:
+        raise DependencyUnavailable("apple bridge timeout", details={"timeout": True})
+
+    monkeypatch.setattr(health_module, "run_osascript", _explode)
+    resp = client.get("/v1/health")
+    body = resp.json()
+    assert body["deps"]["apple_bridge"] == "down"
     assert body["status"] == "down"

@@ -427,3 +427,200 @@ The bridge publishes `system.bridge.startup` during lifespan startup, after Redi
 ### `vault.changed` payload field
 
 Payload shape is `{ "path": "...", "op": "create|append|replace", "changed_at": "iso8601" }` per the topic catalogue. Successful vault writes publish this on every code path. Publish failures do not fail the write — the file is already on disk and subscribers must tolerate gaps (see `docs/event-bus.md` § Patterns to follow).
+
+
+---
+
+## Amendments — 2026-05-02 (Session 5)
+
+These supersede the corresponding parts of the spec above. Reasons documented in the Session 5 entry of `SESSION-NOTES.md`.
+
+### `/v1/health` `apple_bridge` is real and critical
+
+The `apple_bridge` key in the deps map was a stub since Session 1. It is now a live probe: `osascript -e 'tell application "System Events" to return true'` with a 2s timeout. The result is `"ok"` if the runner returns the literal `"true"`, otherwise `"down"`. Any `DependencyUnavailable` from the runner (timeout, non-zero exit, missing binary, TCC denial) collapses to `"down"`.
+
+`apple_bridge` joins the critical-dep set: a `"down"` `apple_bridge` pushes overall `status` off `"ok"`. The remaining stubs are now `imap_glysk`, `imap_lopes`, `imap_whilesum` only — to be wired in Session 6.
+
+### Calendar / reminders / contacts dates are naive ISO 8601
+
+Times in request and response bodies (`start`, `end`, `due_date`) are naive ISO 8601 (`YYYY-MM-DDTHH:MM:SS`, no offset), interpreted as the bridge host's local time. The bridge runs as one user on one host so this is sufficient for v1. If brains start sharing events across boxes, a future v1.x amendment will switch the inline AppleScript formatter to emit `ZZZZZ` and document the offset semantics.
+
+### Calendar `update` does not move events between calendars
+
+`PATCH /v1/calendar/events/{id}` accepts `calendar` in the request body for symmetry with create, but the field is ignored. Moving events between calendars is awkward in AppleScript and out of scope for v1; the explicit move is `DELETE` + `POST` from the caller.
+
+### Contacts `limit` is enforced server-side
+
+`GET /v1/contacts/search?q=…&limit=N` caps results at `N` (default 10, max 100) by exiting the AppleScript loop after the Nth match. Requests with `limit < 1` or `limit > 100` return `422 validation_failed`.
+
+### Calendar / reminders / contacts: AppleScript framing
+
+The bridge talks to Calendar.app, Reminders.app, and Contacts.app via `osascript -e`. Output is framed with ASCII control characters as separators (US 0x1f for fields, RS 0x1e for records); inputs are shell-escaped (backslashes and double quotes doubled, newlines and null bytes rejected with `400 bad_request`). This is a bridge implementation detail invisible to API callers, but documented here so future cross-platform work knows what the wire format looks like.
+
+### `apple:calendar:write` / `apple:reminders:write` rate-limit bucket
+
+Both write scopes use the default "everything else" bucket from the rate-limiting table: 300 req/min, burst 50. The `imessage:send` and `vault:write` and `llm:call` rows in the rate-limiting table are unchanged; Apple writes do not appear there because the human-cadence reality (a brain creating one event per task) doesn't justify a tighter bucket.
+
+### `apple_bridge: down` is silent except via `/v1/health`
+
+If macOS revokes a TCC grant, `osascript` returns a non-zero exit code with an "Application isn't running"-style stderr. The runner translates that to a `DependencyUnavailable`; the health probe collapses it to `"down"` and serves `502 dependency_unavailable` from the calendar/reminders/contacts endpoints when called. The error envelope's `details` carries the runner's stderr snippet (capped at 500 chars) so the operator can diagnose without grep'ing logs.
+
+
+---
+
+## Amendments — 2026-05-02 (Session 6)
+
+These supersede the corresponding parts of the spec above. Reasons documented in the Session 6 entry of `SESSION-NOTES.md`.
+
+### `/v1/health` `imap_*` are real and non-critical
+
+The three `imap_*` keys (`imap_glysk`, `imap_lopes`, `imap_whilesum`) are now live probes — login + NOOP + logout against the real server, with a 3s budget per account. They are **non-critical**: a "down" IMAP does not flap overall `/v1/health` status. Justification: email is a convenience surface, not a blocker; the bridge stays serving calendar/vault/LLM/Apple even when one mail server is offline. Operators read the deps map for per-account status.
+
+With Session 6, every dep key in the deps map is a real probe. No stubs remain.
+
+### `email.toml` for server config; Keychain for password
+
+Per-account IMAP/SMTP host/port/address live in `~/.openclaw/email.toml` (path overridable via `BRIDGE_EMAIL_CONFIG`). The per-account password lives in macOS Keychain under `provider.email.{account}`. If either is missing, the account's IMAP and SMTP providers are not constructed — the routes return `502 dependency_unavailable` with `details.account` and `details.missing`, and the health probe reports `"down"` for that account.
+
+Allowed account names: `glysk | lopes | whilesum`. Unknown names in `email.toml` are dropped at load time with a structured warning.
+
+### Email thread id is opaque + reversible
+
+`GET /v1/email/threads/{id}` accepts an opaque token of the form
+
+    base64-urlsafe( "{account}:{message_id_no_brackets}" )
+
+(padding stripped). Callers treat it as opaque. The token round-trips back into the account + Message-ID server-side, so the detail endpoint does not need a separate `?account=` query param. Malformed tokens return `400 bad_request`.
+
+### Email threading: IMAP THREAD REFERENCES, branches flattened
+
+The bridge uses the IMAP `THREAD REFERENCES` extension (RFC 5256). For `list_threads`, the parenthesised tree response is flattened — `ThreadSummary.message_count` counts every message regardless of branch position. For `get_thread`, the bridge runs `UID SEARCH OR HEADER Message-ID … HEADER References …` against the root Message-ID — replies whose clients omit the References header will not appear (v1 limitation; defer until a real case forces a Subject-grouping fallback).
+
+### Email send composition
+
+`POST /v1/email/send` always uses STARTTLS for SMTP. The bridge stamps a fresh `Message-ID` per send; `body_text` only → text/plain; `body_html` only → text/html; both → multipart/alternative with text first. `in_reply_to` populates both `In-Reply-To` and `References` on the outgoing message. The 202 response contains the assigned `message_id` and `queued_at` (ISO 8601 UTC).
+
+### Email address validation is light
+
+Per-address validation is a basic `@`-presence check. The bridge does not pull in `email-validator`; SMTP rejects malformed addresses at send time with an SMTP 5xx that the bridge surfaces as `502 dependency_unavailable` carrying the upstream error in `details.error`.
+
+### Email rate limits
+
+`email:read` falls into the default ("everything else") rate-limit bucket: 300 req/min, burst 50. `email:send` likewise — the spec table does not list it explicitly. Tighten with a dedicated bucket when human-cadence sending isn't enough.
+
+### Email account selection
+
+`GET /v1/email/threads` requires `?account=glysk|lopes|whilesum`. Unknown account names return `422 validation_failed` (Pydantic enum). `POST /v1/email/send` carries `"account"` in the JSON body with the same validation.
+
+
+---
+
+## Amendments — 2026-05-02 (Session 7)
+
+These supersede the corresponding parts of the spec above. Reasons documented in the Session 7 entry of `SESSION-NOTES.md`.
+
+### Two new iMessage endpoints (queue + dispatch confirmation)
+
+The original spec lists two iMessage endpoints (`POST /v1/imessage/send`, `POST /v1/imessage/inbound`) but is silent on how the relay receives jobs from the bridge. Session 7 adds two more endpoints to make the queue mechanism explicit:
+
+- `GET /v1/imessage/outbox?agent={agent}&timeout_s={n}` — scope `imessage:relay`. Long-poll dequeue (BLPOP-backed). Returns `200` with the next job JSON, or `204` (no body) if the long-poll times out. `timeout_s` is clamped to `[0, 60]`; default is `25`.
+- `POST /v1/imessage/sent` — scope `imessage:relay`. Relay confirms the dispatch outcome. Body:
+
+  ```json
+  {
+    "agent": "clu|tron|flynn",
+    "message_id": "...",
+    "to": "+39...",
+    "body": "...",
+    "status": "success|failed",
+    "sent_at": "iso8601 (success)",
+    "error_code": "string (failed)",
+    "error_message": "string (failed)"
+  }
+  ```
+
+  Response `200` with `{"acknowledged": true, "event_id": "..."}`. The bridge translates `status` into one of two topics from the topic catalogue: `imessage.sent.{agent}` for success, `imessage.send.failed.{agent}` for failure.
+
+### Outbound queue is a Redis list
+
+`POST /v1/imessage/send` `RPUSH`es the job onto `imessage:outbound:{from}` (Redis key) with a JSON blob `{message_id, from, to, body, service, queued_at, request_id, publisher}`. `GET /v1/imessage/outbox` `BLPOP`s the same list. List backing is durable: if the relay is offline when a brain calls `/send`, the job stays queued until a relay returns. Pub/sub was rejected for v1 because pub/sub messages are dropped if no subscriber is connected.
+
+If Redis is unavailable, both `/v1/imessage/send` and `/v1/imessage/outbox` return `502 dependency_unavailable`. The bridge does not buffer in memory.
+
+### Scope distinction is enforced
+
+`imessage:send` is held by *brains* and grants `POST /v1/imessage/send` only. `imessage:relay` is held by *relay processes* and grants `POST /v1/imessage/inbound`, `GET /v1/imessage/outbox`, and `POST /v1/imessage/sent`. A token lacking the right scope returns `403 forbidden_scope` per the standard envelope.
+
+### Send-event topic split
+
+Per `docs/event-bus.md`, success and failure are separate topics — `imessage.sent.{agent}` (3 segments) and `imessage.send.failed.{agent}` (4 segments). The bridge picks one based on the relay's `/sent` `status` field. Subscribers wanting both can subscribe to `imessage.*` (1-segment wildcard at the leaf is allowed).
+
+### `imessage:send` rate limit confirmed
+
+`30 req/min, burst 5` per the original spec table — applied to brains via `require_rate("imessage:send")`. Anti-spam is intentional; brains should not exceed human-cadence sending.
+
+
+---
+
+## Amendments — 2026-05-02 (P1a — bridge-side draft store + approval flow)
+
+These supersede the corresponding parts of the spec above. Reasons documented in the P1a entry of `SESSION-NOTES.md`.
+
+### Three new agent endpoints
+
+The bridge owns the lifecycle of brain-generated draft replies. Brains POST drafts; operators inspect and approve via PATCH; the bridge enqueues to the iMessage outbox on approval and correlates the relay's `/v1/imessage/sent` confirmation back to the draft row.
+
+- `POST /v1/agent/drafts` — scope `agent:drafts:write`. Body:
+
+  ```json
+  {
+    "agent": "clu|tron|flynn",
+    "channel": "imessage|email",
+    "to_handle": "+39...",
+    "body": "draft body",
+    "in_reply_to_event_id": "uuid (optional)",
+    "preview": "first 80 chars (optional; auto-derived if omitted)"
+  }
+  ```
+
+  Returns `201` with `{draft_id, agent, channel, status:"pending", created_at, preview}`. Idempotent via the existing `Idempotency-Key` middleware. Side effect: publishes `agent.{agent}.draft.pending` with `{draft_id, channel, preview}` (the brain's actor is set as the publisher).
+
+- `GET /v1/agent/drafts?agent=clu&status=pending&limit=50` — scope `agent:drafts:read`. Returns `{drafts: [...]}`. Both filters optional. `limit` clamped to `[1, 200]`.
+
+- `GET /v1/agent/drafts/{draft_id}` — scope `agent:drafts:read`. Full draft row. 404 if not found.
+
+- `PATCH /v1/agent/drafts/{draft_id}` — scope `agent:drafts:approve`. Body accepts `status`, `body`, `reject_reason`, `approved_by` — at least one of `status`/`body` is required (else 400). State-machine transitions enforced atomically (see below); illegal transitions return `409 conflict`.
+
+### State machine
+
+```
+pending  --approve--> approved   --(relay /sent ok)--> sent          (terminal)
+                                --(relay /sent fail)-> send_failed   (retryable)
+pending  --reject--> rejected                                        (terminal)
+send_failed --approve--> approved (re-RPUSH dispatch)
+approved --reject--> rejected (late reject before send confirmed)
+```
+
+`sent` and `rejected` are terminal — further PATCH attempts return `409 conflict`. Body edits are forbidden in `sent` and `rejected` states; they are allowed in `pending`, `approved`, and `send_failed`.
+
+### Approval triggers dispatch
+
+When PATCH flips status to `approved`, the bridge:
+
+1. Generates a fresh `dispatch_message_id` (UUID, distinct from `draft_id`).
+2. RPUSHes a job onto `imessage:outbound:{agent}` (the existing Session 7 outbox queue) with the standard fields plus a `draft_id` correlator.
+3. Publishes `agent.{agent}.draft.approved` with `{draft_id, approved_by, approved_at}`.
+
+The relay (Session 7) BLPOPs the queue and dispatches as usual. On the relay's `POST /v1/imessage/sent`, the bridge looks up the draft by `dispatch_message_id` and updates `sent_at` (success) or `last_send_error_*` + status `send_failed` (failure). Correlation is best-effort — a `/sent` for an unknown `message_id` succeeds normally (the message_id may have come from a non-draft direct send via `/v1/imessage/send`).
+
+### Three new scopes
+
+- `agent:drafts:write` — POST `/v1/agent/drafts`. Held by brains (`brain.clu`, etc.).
+- `agent:drafts:read` — GET `/v1/agent/drafts*`. Held by operator CLIs and read-only viewers.
+- `agent:drafts:approve` — PATCH `/v1/agent/drafts/{id}`. Held by the operator's CLI (`cli.giuseppelopes`).
+
+A token holding only `agent:drafts:read` cannot approve, edit, or reject — principle of least privilege. The CLI mints with both `read` + `approve`; a future "preview-only" token (e.g. for a phone shortcut) would hold `read` only.
+
+### `agent.db` is a critical dep
+
+A new SQLite file at `~/.openclaw/agent.db` (override via `BRIDGE_AGENT_DB`) backs the drafts table. The `/v1/health` deps map gains `agent_db`, which is in the critical-dep set: a "down" `agent_db` pushes overall status to "down". Migrations live in `bridge/src/bridge/migrations/agent_*.sql`.
