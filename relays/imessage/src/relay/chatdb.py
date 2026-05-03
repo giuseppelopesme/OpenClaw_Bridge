@@ -16,6 +16,14 @@ Full Disk Access (FDA) is required to read chat.db on modern macOS. The
 relay process (running as ``clu``) needs FDA granted via System Settings
 → Privacy & Security → Full Disk Access. Operator pre-flight, not a code
 concern — see ``SESSION-NOTES.md``.
+
+WAL note: we open the database with ``mode=ro`` only. We do NOT use
+``immutable=1`` even though it would skip the locking dance, because
+Messages.app writes new messages into chat.db-wal (write-ahead log)
+and only checkpoints into chat.db periodically. ``immutable=1`` makes
+SQLite ignore the WAL — we'd see only checkpointed history and miss
+messages that arrive between checkpoints, which is the entire point
+of polling. ``mode=ro`` opens read-only but still consults the WAL.
 """
 
 from __future__ import annotations
@@ -111,7 +119,7 @@ class ChatDBCursor:
         """
         try:
             conn = sqlite3.connect(
-                f"file:{self._chatdb}?mode=ro&immutable=1",
+                f"file:{self._chatdb}?mode=ro",
                 uri=True,
                 timeout=2.0,
             )
@@ -151,7 +159,7 @@ class ChatDBCursor:
         last = self.read_last_seen()
         try:
             conn = sqlite3.connect(
-                f"file:{self._chatdb}?mode=ro&immutable=1",
+                f"file:{self._chatdb}?mode=ro",
                 uri=True,
                 timeout=2.0,
             )
