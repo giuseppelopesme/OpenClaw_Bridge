@@ -11,18 +11,16 @@
 
   Pre-flight (operator, one-time):
 
-  1. Mint a brain token:
-       uv run --no-sync python scripts/mint-token.py \
+  1. Mint a brain token (stores into giuseppelopes's Keychain; the
+     wrapper script reads it back at launch — no plaintext in this
+     plist, no env var to substitute):
+       scripts/mint-token.py \
            --actor brain.clu \
-           --scopes llm:call,vault:read,vault:write,events:subscribe,events:publish,imessage:send
-     Save the plaintext (printed once); paste it into the
-     `BRAIN_TOKEN` placeholder below.
+           --scopes llm:call,vault:read,vault:write,events:subscribe,events:publish,agent:drafts:write
 
-  2. Make sure the bridge + Redis are running first. If you have the
-     Session 4 redis plist installed and the bridge plist installed
-     (a future session), launchd will start everything on boot. For
-     now the operator runs scripts/run-redis.sh + scripts/run-bridge.sh
-     in foreground.
+  2. Make sure the bridge + Redis are running first. With the bridge,
+     redis, brain.clu, and relay.clu plists all installed, launchd
+     starts everything on boot.
 
   NOT auto-installed by Session 9. To load (one-time):
 
@@ -34,11 +32,8 @@
       launchctl unload ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.brain.clu.plist
 
   Logs are written to /Users/giuseppelopes/.openclaw/clu.{out,err}.log
-  so Console.app and `tail -f` both work. The brain token is passed via
-  EnvironmentVariables; macOS plists are owned by the user, readable
-  only by them, so this is the cleanest place for the secret short of
-  pulling from Keychain (which would be a future refactor — same as
-  the relay's plist note from Session 7).
+  so Console.app and `tail -f` both work. The brain token is loaded
+  from Keychain by scripts/run-clu.sh — no secret in this plist.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -77,14 +72,6 @@
 
     <key>STATE_DB_PATH</key>
     <string>/Users/giuseppelopes/.openclaw/clu.state.db</string>
-
-    <!--
-      Replace the placeholder with the plaintext token from
-      scripts/mint-token.py. macOS launchd plists are user-readable
-      only; this avoids checking the secret into the repo.
-    -->
-    <key>BRAIN_TOKEN</key>
-    <string>__REPLACE_WITH_BRAIN_TOKEN__</string>
   </dict>
 </dict>
 </plist>
