@@ -27,7 +27,7 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/giuseppelopes/Developer/OpenClaw_Bridge/scripts/run-redis.sh</string>
+    <string>/Users/giuseppelopes/Runtime/OpenClaw_Bridge/scripts/run-redis.sh</string>
   </array>
 
   <key>RunAtLoad</key>
@@ -37,7 +37,7 @@
   <true/>
 
   <key>WorkingDirectory</key>
-  <string>/Users/giuseppelopes/Developer/OpenClaw_Bridge</string>
+  <string>/Users/giuseppelopes/Runtime/OpenClaw_Bridge</string>
 
   <key>StandardOutPath</key>
   <string>/Users/giuseppelopes/.openclaw/redis.out.log</string>

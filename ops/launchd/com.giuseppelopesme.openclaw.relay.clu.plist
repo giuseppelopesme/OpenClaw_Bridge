@@ -24,11 +24,18 @@
      where the placeholder is.
 
   NOT auto-installed by Session 7. To load (one-time, from the `clu`
-  account):
+  account — note: `clu` needs its own production runtime clone at
+  /Users/clu/Runtime/OpenClaw_Bridge because launchd can't read into
+  another user's home dir):
 
-      cp ops/launchd/com.giuseppelopesme.openclaw.relay.clu.plist \
-         ~/Library/LaunchAgents/
-      launchctl load ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist
+      sudo -u clu git clone https://github.com/giuseppelopesme/OpenClaw_Bridge.git \
+         /Users/clu/Runtime/OpenClaw_Bridge
+      sudo -u clu sh -c 'cd /Users/clu/Runtime/OpenClaw_Bridge && uv sync --group dev'
+      sudo cp ops/launchd/com.giuseppelopesme.openclaw.relay.clu.plist \
+         /Users/clu/Library/LaunchAgents/
+      sudo chown clu:staff /Users/clu/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist
+      sudo -u clu launchctl bootstrap gui/$(id -u clu) \
+         /Users/clu/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist
 
   To unload:
       launchctl unload ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist
@@ -48,7 +55,7 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/giuseppelopes/Developer/OpenClaw_Bridge/scripts/run-relay.sh</string>
+    <string>/Users/clu/Runtime/OpenClaw_Bridge/scripts/run-relay.sh</string>
     <string>clu</string>
   </array>
 
@@ -59,7 +66,7 @@
   <true/>
 
   <key>WorkingDirectory</key>
-  <string>/Users/giuseppelopes/Developer/OpenClaw_Bridge</string>
+  <string>/Users/clu/Runtime/OpenClaw_Bridge</string>
 
   <key>StandardOutPath</key>
   <string>/Users/clu/.openclaw/relay.clu.out.log</string>
