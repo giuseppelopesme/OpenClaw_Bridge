@@ -87,6 +87,57 @@ class ChatDBCursor:
         tmp.write_text(str(int(rowid)), encoding="utf-8")
         os.replace(tmp, self._state)
 
+    # -- bootstrap -----------------------------------------------------
+
+    def state_exists(self) -> bool:
+        """Whether the state file is present (i.e. not a fresh run)."""
+        return self._state.is_file()
+
+    def bootstrap_to_tail(self) -> int:
+        """Skip-to-tail on first run.
+
+        Without this, the first poll sees ``last_seen == 0`` and treats
+        the entire chat.db history as fresh inbound — a relay starting
+        for the first time on a chat.db with N years of history would
+        burst N years of messages through the bridge and fan them out
+        to the brain. We don't want that. On a missing state file we
+        snapshot the current MAX(ROWID), persist it, and start the
+        polling cursor from there. Subsequent restarts honour whatever
+        was already persisted.
+
+        Returns the ROWID written, or 0 if chat.db can't be read yet —
+        callers should retry; this is the same code path as any other
+        chat.db open failure.
+        """
+        try:
+            conn = sqlite3.connect(
+                f"file:{self._chatdb}?mode=ro&immutable=1",
+                uri=True,
+                timeout=2.0,
+            )
+        except sqlite3.Error as exc:
+            logger.warning(
+                "chatdb_open_failed",
+                extra={"path": str(self._chatdb), "error": str(exc)},
+            )
+            return 0
+        try:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(ROWID), 0) AS m FROM message",
+            ).fetchone()
+        finally:
+            conn.close()
+        max_rowid = int(row[0]) if row is not None else 0
+        self.write_last_seen(max_rowid)
+        logger.info(
+            "chatdb_bootstrapped_to_tail",
+            extra={
+                "path": str(self._chatdb),
+                "starting_rowid": max_rowid,
+            },
+        )
+        return max_rowid
+
     # -- query ---------------------------------------------------------
 
     def poll_new(self) -> Iterator[InboundMessage]:

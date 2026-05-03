@@ -238,6 +238,17 @@ def main() -> int:
 
     cursor = ChatDBCursor(cfg.chatdb_path, cfg.state_path)
 
+    # First-run safety: if the state file doesn't exist, snapshot
+    # MAX(ROWID) from chat.db and persist that as the starting point.
+    # Without this the first poll cycle would treat every historical
+    # message in chat.db as fresh inbound and burst them all through
+    # the bridge to the brain. Idempotent — only kicks in on missing
+    # state file. If chat.db isn't readable yet (FDA not granted),
+    # bootstrap returns 0 and the inbound loop will retry on its
+    # normal polling cadence; chat.db query errors are non-fatal.
+    if not cursor.state_exists():
+        cursor.bootstrap_to_tail()
+
     with BridgeClient(base_url=cfg.bridge_url, token=cfg.relay_token) as bridge:
         inbound = threading.Thread(
             target=run_inbound_loop,
