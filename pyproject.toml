@@ -45,6 +45,11 @@ dev = [
     # explicitly here because `tools/dump-openapi.py` is a dev-only tool
     # that needs the import at build-time, not run-time.
     "pyyaml>=6.0",
+    # .app bundle build tool (Session 10a). Used by `bundle/relay/build.sh`
+    # to freeze `relays/imessage` into `OpenClawRelay.app/Contents/MacOS/`.
+    # Build-time only; never imported by the bridge, the relay, or any
+    # brain at runtime.
+    "pyinstaller>=6.10",
 ]
 
 [tool.ruff]

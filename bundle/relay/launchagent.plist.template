@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LaunchAgent for the bundled OpenClawRelay.app.
+
+  This file is bundled INSIDE the .app at
+  Contents/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist
+  and is copied into ~/Library/LaunchAgents/ by setup-clu-account.sh
+  during install.
+
+  The placeholders __APP_PATH__ and __LOG_DIR__ are substituted by the
+  install step, not the build step — the .app's location depends on the
+  install target (/Applications vs ~/Applications), and the log dir
+  depends on the running user.
+
+  Why launchd, not SMAppService: SMAppService.register() is a Swift API.
+  Calling it from Python without PyObjC requires shipping a separate
+  Swift launcher binary, which is a larger surface for v1. A LaunchAgent
+  pointing at the .app's signed Contents/MacOS/OpenClawRelay binary
+  achieves the same goal — the binary's Designated Requirement is what
+  anchors the Automation: Messages.app grant, which is the actual
+  reason this whole .app exists.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.giuseppelopesme.openclaw.relay.clu</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__APP_PATH__/Contents/MacOS/OpenClawRelay</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__LOG_DIR__/relay.clu.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__LOG_DIR__/relay.clu.err.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+
+        <key>AGENT_NAME</key>
+        <string>clu</string>
+
+        <key>BRIDGE_URL</key>
+        <string>http://127.0.0.1:8788</string>
+    </dict>
+</dict>
+</plist>

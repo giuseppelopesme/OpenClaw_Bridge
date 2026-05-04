@@ -3139,3 +3139,342 @@ The full Obsidian round-trip (`status: pending` → operator edits to
 `approved` on iPhone → iCloud syncs → bridge sees vault.changed →
 PATCHes its own /v1/agent/drafts/{id}) is the demo to capture in
 P1b's SESSION-NOTES entry.
+
+# Session 10a — Relay as Developer-ID-signed `.app` bundle
+
+Date: 2026-05-04
+
+## What landed
+
+The first Apple-signed, notarized `.app` bundle in the project:
+`OpenClawRelay.app` — a frozen, signed, stapled wrapper around the
+existing `relays/imessage` package. Replaces the launchd plist +
+`scripts/run-relay.sh` topology that shipped in Session 7. The
+motivation is the macOS Sequoia security wall documented in the
+Handoff doc's "Strategic shift" section: AppleEvents to Messages.app
+require the calling process to have a stable, user-grantable
+Designated Requirement, and an unsigned `uv run python` chain doesn't.
+
+`uv run --no-sync pytest` is green at **391 passed / 2 skipped**.
+Ruff, ruff format, mypy --strict (bridge + brains_shared), and the
+boundary script all clean. (Tests grew from 350 → 391 between Session 9
+and 10a — the production-bringup bug-fix commits added relay tests for
+the chat.db WAL behaviour, the cursor bootstrap, and the Redis socket
+timeout.)
+
+### Files added
+
+- `bundle/relay/pyinstaller.spec` — PyInstaller build definition. Pulls
+  `relays/imessage/src/relay/launcher.py` as the entry point. `excludes`
+  list explicitly forbids `bridge`, `brains_shared`, `clu`, `tron`,
+  `flynn`, `pytest`, `fakeredis` from the bundle — defence in depth on
+  top of the project's import-boundary rules. `target_arch="arm64"`
+  matches our M-series-only runtime.
+- `bundle/relay/Info.plist.template` — real bundle Info.plist. Injected
+  by `build.sh` after PyInstaller's BUNDLE step writes its default.
+  `LSUIElement=1` (no Dock icon), `NSAppleEventsUsageDescription`
+  surfaces verbatim in the macOS Automation prompt, `LSMinimumSystemVersion=14.0`.
+  `__VERSION__` is replaced with the package version from
+  `relays/imessage/pyproject.toml` (currently 0.1.0).
+- `bundle/relay/entitlements.plist` — four entries:
+    1. `com.apple.security.automation.apple-events = true` — the whole
+       point of this session.
+    2. `com.apple.security.app-sandbox = false` — sandbox forbids both
+       FDA on chat.db and AppleEvents to apps not pre-declared. We are
+       NOT shipping to the App Store; sandbox is incompatible with the
+       relay's job.
+    3. `com.apple.security.cs.allow-jit = true` — required for
+       PyInstaller's bootloader under hardened runtime; without it the
+       bundle launches and is killed instantly with code-signing
+       violation.
+    4. `com.apple.security.cs.disable-library-validation = true` —
+       required because Python 3.13's bundled C extensions are signed
+       by python.org, not by us; without it dyld refuses to load
+       `_ssl.so`, `_hashlib.so`, etc.
+  Each is documented in `bundle/relay/README.md` § "Entitlements
+  rationale". *Not* documented inline in the plist itself: codesign's
+  AMFI parser rejects multi-line `<!-- -->` comments inside `<dict>`
+  even when `plutil -lint` accepts them. Two builds wasted on this.
+- `bundle/relay/launchagent.plist.template` — bundled at
+  `Contents/Library/LaunchAgents/` inside the .app. Templated; the
+  install step (`scripts/setup-clu-account.sh`) substitutes
+  `__APP_PATH__` and `__LOG_DIR__` with the real install paths.
+  See "Why launchd, not SMAppService" below.
+- `bundle/relay/build.sh` — PyInstaller → Info.plist injection →
+  embedded LaunchAgent → codesign → ditto-zip → notarytool submit
+  --wait → stapler. ~120 lines, idempotent, fail-fast on missing
+  `TEAM_ID` / `DEV_ID_IDENTITY` / `NOTARY_PROFILE` env. Build time:
+  ~6s for PyInstaller, ~25s for codesign, ~2 minutes for Apple-side
+  notarization (the long pole), ~1s for stapler. Total ~3 minutes
+  end-to-end on a Mac Mini M4.
+- `bundle/relay/test_bundle.sh` — post-build smoke test. Verifies
+  bundle structure, Info.plist values via `plutil -extract`, hardened
+  runtime via `codesign -dvv`, the four entitlements via
+  `codesign -d --entitlements - --xml`, Gatekeeper acceptance via
+  `spctl --assess`, stapled ticket via `xcrun stapler validate`. ~5s
+  to run.
+- `bundle/relay/README.md` — full per-file rationale + entitlements
+  documentation (the comments codesign refused to accept inline).
+- `relays/imessage/src/relay/launcher.py` — the .app's entry point.
+  PyInstaller wraps this module's `main()` as
+  `Contents/MacOS/OpenClawRelay`. Reads `RELAY_TOKEN` from the running
+  user's login keychain (via `keychain_reader`), populates
+  `os.environ["RELAY_TOKEN"]`, then calls `relay.main.main()`
+  unchanged. Same code path the old `scripts/run-relay.sh` followed,
+  different parent process.
+- `relays/imessage/src/relay/keychain_reader.py` — `subprocess.run(["/usr/bin/security",
+  "find-generic-password", "-s", "com.giuseppelopesme.openclaw.bridge",
+  "-a", actor, "-w"])` and parse the JSON envelope. No new Python deps;
+  matches the project's "shell out to Apple binaries" pattern. Raises
+  `KeychainReadError` with the operator-facing fix command on every
+  failure path.
+
+### Files changed
+
+- `pyproject.toml` (root) — `pyinstaller>=6.10` added to the dev
+  group with the same justification as `openapi-python-client`:
+  build-time-only, never imported at runtime. Locked to PyInstaller
+  6.x (6.20.0 at time of writing).
+- `CLAUDE.md` — synced from the Handoff doc's canonical version (which
+  was Sessions-1-through-9 + production-bringup current; the on-disk
+  copy was Session-4 vintage). Layered on the Session 10a deltas:
+  Status section calls out the 10a re-platform; Operational rules
+  drop `scripts/run-relay.sh` and document the .app as the canonical
+  relay distribution; Build order splits Session 10 into 10a/10b/10c;
+  Stop-and-ask adds the bundle-entitlements caveat. The drift between
+  the on-disk CLAUDE.md and the Handoff doc was a latent operational
+  hazard; this session brought them back in sync.
+- `scripts/setup-clu-account.sh` — completely rewritten. The token
+  step is unchanged; the launchd-plist install step is replaced with
+  `.app` discovery + LaunchAgent template substitution + bootstrap.
+  Refuses to bootstrap a bundle Gatekeeper rejects (`spctl --assess`
+  guard). Surfaces the FDA + Automation: Messages manual grants the
+  operator must do on clu's desktop after the script returns —
+  neither is automatable, both prompt System Settings UI.
+
+### Files deleted
+
+- `ops/launchd/com.giuseppelopesme.openclaw.relay.clu.plist` —
+  replaced by the bundled template inside `OpenClawRelay.app/Contents/Library/LaunchAgents/`.
+- `scripts/run-relay.sh` — its job (load `RELAY_TOKEN` from keychain,
+  set `PYTHONPATH`, exec `python -m relay.main`) is now done by the
+  PyInstaller-frozen `Contents/MacOS/OpenClawRelay` binary.
+
+## Decisions
+
+### PyInstaller, not Briefcase or py2app
+
+PyInstaller is the well-trodden path for freezing Python services into
+macOS .app bundles. The hardened-runtime + notarization story is
+documented end-to-end. `--target-arch arm64` matches our deployment
+constraint. Briefcase (BeeWare) generates extra Toga UI scaffolding the
+relay doesn't need and would have required teaching it about
+LaunchAgents. py2app's notarization story is less well-trodden and
+the project has been less actively maintained. Per-bundle build setup
+is isolated under `bundle/<component>/`, so a future swap to Briefcase
+for (say) the bridge .app would not entangle relay-side work.
+
+### launchd LaunchAgent, not SMAppService
+
+The Handoff doc's Session 10a prompt called for `SMAppService`
+registration. SMAppService is a Swift API; calling it from Python
+without PyObjC requires shipping a separate Swift launcher binary,
+which is a larger surface for v1. CLAUDE.md is explicit that PyObjC is
+not in the stack. A standard LaunchAgent that exec's the .app's signed
+binary `Contents/MacOS/OpenClawRelay` achieves the same goal — the
+binary's Designated Requirement is what anchors the Automation:
+Messages.app grant, which is the actual reason the .app exists. The
+LaunchAgent template is bundled inside the .app at
+`Contents/Library/LaunchAgents/` (so it travels with the build) and
+copied into `~/Library/LaunchAgents/` by the install script (so
+launchd can see it).
+
+### Hidden entitlements documentation
+
+The first `bundle/relay/entitlements.plist` had the rationale for each
+entitlement embedded as multi-line `<!-- -->` comments. `plutil -lint`
+accepted it, but `codesign` rejected it with `Failed to parse
+entitlements: AMFIUnserializeXML: syntax error near line 31`. AMFI's
+XML parser is stricter than plutil's. The fix is to keep
+`entitlements.plist` minimal (one short top-of-file comment) and move
+the rationale into `bundle/relay/README.md`. Future contributors:
+**do not add multi-line comments inside the dict**.
+
+## Verification
+
+Local build + smoke test run on giuseppelopes (the only account with
+the Developer ID Application certificate):
+
+```
+$ TEAM_ID=283UY8S778 \
+  DEV_ID_IDENTITY="Developer ID Application: Giuseppe Lopes (283UY8S778)" \
+  NOTARY_PROFILE=openclaw-notary \
+  bundle/relay/build.sh
+==> building OpenClawRelay.app v0.1.0
+==> running PyInstaller
+   ...
+==> codesigning (Developer ID, hardened runtime, entitlements)
+==> verifying signature
+   ...: valid on disk
+   ...: satisfies its Designated Requirement
+==> submitting to notarytool (this typically takes 1–3 minutes)
+   id: e0cb1cab-8664-4ca0-bc6b-49c56e4c58ba
+   status: Accepted
+==> stapling notarization ticket
+   The staple and validate action worked!
+==> spctl assessment (Gatekeeper)
+   ...: accepted
+   source=Notarized Developer ID
+==> SUCCESS: bundle/relay/dist/OpenClawRelay.app
+
+$ bundle/relay/test_bundle.sh
+OK: bundle/relay/dist/OpenClawRelay.app
+    bundle id: com.giuseppelopesme.openclaw.relay.clu
+    LSUIElement: true
+    spctl: ...: accepted
+```
+
+Live binary launch (without a keychain entry) emits the expected
+structured error — confirms the full Python boot path works under
+hardened runtime + entitlements:
+
+```
+$ bundle/relay/dist/OpenClawRelay.app/Contents/MacOS/OpenClawRelay
+{"ts":"2026-05-04T13:20:50Z","level":"error","logger":"relay.launcher",
+ "msg":"relay_launcher_keychain_read_failed","actor":"relay.clu",
+ "error":"no keychain item for service='com.giuseppelopesme.openclaw.bridge'
+  account='relay.clu': security: SecKeychainSearchCopyNext: ...",
+ "hint":"Run scripts/setup-clu-account.sh on this account, ..."}
+$ echo $?
+2
+```
+
+No `EXC_BAD_ACCESS`, no `code signing violation`, no `library not
+loaded`. The bundle imports `relay.launcher`, calls into
+`relay.keychain_reader`, fork+execs `/usr/bin/security`, parses the
+"not found" stderr, emits structured JSON, exits 2. Full launch path
+verified.
+
+## Known issues / open
+
+1. **End-to-end iMessage send not yet verified.** The .app builds,
+   signs, notarizes, staples, launches under hardened runtime, and
+   handles the "no keychain entry" path. What is **not** yet verified:
+   the actual `osascript → Messages.app` send under the new bundle's
+   identity, with the Automation: Messages prompt firing on clu's
+   desktop, the operator clicking Allow, and an iMessage arriving on
+   the test phone. That is operator-side work — the build host is
+   `giuseppelopes`, the runtime host is `clu`, and iMessage prompts
+   only fire under interactive desktop sessions. The full procedure
+   is the next entry under "Operator handoff" below.
+
+2. **No automated GitHub release flow yet.** The .app is built locally
+   and shipped to clu's `/Applications/` by hand. A future session
+   should add `tools/release-relay.sh` that tags, builds, signs,
+   notarizes, and uploads to a GitHub release. Out of scope for 10a.
+
+3. **Single-agent bundle.** The CFBundleIdentifier and bundled
+   LaunchAgent label are both hardcoded to `…relay.clu`. When TRON
+   and FLYNN ship, the natural shape is to parameterise the spec
+   (`bundle/relay/build.sh --agent tron` produces
+   `OpenClawRelayTron.app`). Deferred to whichever session ships
+   TRON's relay first.
+
+4. **CLAUDE.md / docs/ drift.** Bringing CLAUDE.md back in sync with
+   the Handoff doc was within scope; the matching `docs/` mirrors of
+   `API Contract v1.md`, `Event Bus.md`, `Repo Layout.md`,
+   `Telemetry Plan.md` against their vault originals were NOT
+   inspected this session. A full vault ↔ `docs/` audit is worth a
+   short hygiene session on its own.
+
+## Operator handoff (manual steps to close out the session)
+
+These steps cannot be done from `giuseppelopes`'s shell — they
+require interactive UI on `clu`'s desktop or the test iPhone.
+
+1. **Copy the .app to a clu-readable path on this machine.** From
+   `giuseppelopes`'s account:
+
+   ```
+   sudo cp -R bundle/relay/dist/OpenClawRelay.app /Applications/
+   ```
+
+2. **Switch to clu's desktop** (Fast User Switching — top-right menu
+   bar → switch to clu, or Apple menu → Log Out). You'll need clu's
+   desktop because the Automation prompt will fire there.
+
+3. **Bootout the OLD launchd job** (left over from Session 7's
+   ops/launchd/relay.clu.plist):
+
+   ```
+   launchctl bootout gui/$(id -u)/com.giuseppelopesme.openclaw.relay.clu \
+     2>/dev/null || true
+   rm -f ~/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist
+   ```
+
+4. **Pull the latest source on clu**, then run the new
+   `setup-clu-account.sh`. The token plaintext is the same one
+   that's already in giuseppelopes's keychain under
+   `relay.clu` — pass it as argument 1:
+
+   ```
+   cd ~/Runtime/OpenClaw_Bridge && git pull --ff-only origin main
+   bash scripts/setup-clu-account.sh <relay-token-plaintext>
+   ```
+
+   The script verifies `/Applications/OpenClawRelay.app` is signed
+   and notarized, materialises the LaunchAgent plist, and bootstraps
+   the launchd job.
+
+5. **Grant Full Disk Access** to the new bundled binary
+   (FDA is keyed off the binary's Designated Requirement; the
+   previous grant on `~/.local/share/uv/.../python3.13` does not
+   transfer):
+
+   System Settings → Privacy & Security → Full Disk Access → `+` →
+   navigate to `/Applications/OpenClawRelay.app/Contents/MacOS/OpenClawRelay`
+   (drag from Finder if Settings refuses to enter the .app).
+   Confirm the entry now appears as "OpenClawRelay" in the FDA
+   list.
+
+6. **Trigger the Automation: Messages prompt.** From `giuseppelopes`,
+   approve a pending draft via `clu-drafts.py approve <id>` (or
+   send a real iMessage from another Apple ID to
+   `clu.openclaw@icloud.com` and approve the resulting draft).
+   Within 2s, clu's desktop should show:
+
+   > "OpenClawRelay" wants to control "Messages".
+   > Allowing control will provide access to documents and data in
+   > "Messages", and to perform actions within that app.
+   > [Don't Allow] [Allow]
+
+   Click **Allow**. The grant sticks because the prompt is anchored
+   to OpenClawRelay's Developer ID-signed Designated Requirement.
+
+7. **Verify iMessage arrives** on the operator's phone. The draft
+   should transition `pending → approved → sent` in the bridge's
+   drafts table. Capture the trace
+   (relay log + bridge access log + draft state) in a follow-up
+   note appended to this Session 10a entry — ideally in a "Live
+   demo verified 2026-05-NN" subsection — so future sessions know
+   the send pipeline is provably closed.
+
+## What the next session should pick up
+
+If the operator handoff above succeeds: **Session 10b** — the
+bridge + brain.clu supervisor refactor, then
+`OpenClawBridge.app`. Same build pattern as 10a (PyInstaller +
+codesign + notarytool + LaunchAgent), but the supervisor process
+needs to coordinate the FastAPI/uvicorn server and the
+brain.clu WebSocket subscriber as one process. The Handoff doc's
+"Strategic shift" section calls for this and 10c (TRON + FLYNN
+brain packages, copy-pasted off CLU) before declaring the
+build-order complete.
+
+If the operator handoff hits a snag (most likely candidates: the
+Automation prompt doesn't fire because the LaunchAgent is exec'ing
+the binary in a non-interactive context, or FDA on the new binary
+needs special-casing because it's inside an .app), capture the
+symptom verbatim and either pivot to a 10a.fix follow-up or
+escalate to the operator with the diagnostic information.
+

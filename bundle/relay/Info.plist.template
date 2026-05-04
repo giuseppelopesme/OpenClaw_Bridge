@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>OpenClawRelay</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>OpenClaw Relay</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>com.giuseppelopesme.openclaw.relay.clu</string>
+
+    <key>CFBundleExecutable</key>
+    <string>OpenClawRelay</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleVersion</key>
+    <string>__VERSION__</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION__</string>
+
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <!-- Background app: no Dock icon, no menu bar entry. The relay is a
+         daemon-shaped process with no UI; LSUIElement keeps it out of
+         the user's view while still letting macOS attribute Automation
+         and TCC grants to the bundle's signed identity. -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+
+    <!-- Surfaced verbatim in the macOS prompt the first time the relay
+         calls osascript to send via Messages.app. The user sees this
+         exact string under the "OpenClawRelay wants to control
+         Messages.app" header. -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>OpenClaw Relay drafts and sends iMessages on your behalf when you approve agent drafts.</string>
+
+    <!-- The relay also reads ~/Library/Messages/chat.db, which lives behind
+         Full Disk Access (TCC). The TCC grant is on the *signed binary*
+         (Contents/MacOS/OpenClawRelay), not on the bundle, but listing the
+         purpose here keeps the operator-facing UX consistent. -->
+    <key>NSSystemAdministrationUsageDescription</key>
+    <string>OpenClaw Relay reads ~/Library/Messages/chat.db to forward inbound iMessages to the OpenClaw Bridge.</string>
+
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright (c) 2026 Giuseppe Lopes. All rights reserved.</string>
+</dict>
+</plist>
