@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Bridge — Concept 2: Linked Nodes</title>
+  <defs>
+    <linearGradient id="b2bg" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#5BC0EB"/>
+      <stop offset="0.6" stop-color="#1E78B0"/>
+      <stop offset="1" stop-color="#08334F"/>
+    </linearGradient>
+    <linearGradient id="b2top" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.6"/>
+      <stop offset="0.4" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="b2bot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="b2pill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#A8DEF5" stop-opacity="0.75"/>
+    </linearGradient>
+    <radialGradient id="b2nodeL" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.55" stop-color="#BEE7FA"/>
+      <stop offset="1" stop-color="#0B4A6E"/>
+    </radialGradient>
+    <radialGradient id="b2nodeR" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.55" stop-color="#BEE7FA"/>
+      <stop offset="1" stop-color="#0B4A6E"/>
+    </radialGradient>
+    <clipPath id="b2clip">
+      <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#b2clip)">
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#b2bg)"/>
+    <!-- Ambient glow -->
+    <circle cx="320" cy="350" r="280" fill="#7FD9FA" opacity="0.18"/>
+    <circle cx="720" cy="680" r="260" fill="#FFFFFF" opacity="0.06"/>
+    <!-- Connecting beam -->
+    <rect x="248" y="472" width="528" height="80" rx="40" fill="url(#b2pill)"/>
+    <rect x="262" y="486" width="500" height="14" rx="7" fill="#FFFFFF" opacity="0.85"/>
+    <!-- Node L -->
+    <circle cx="248" cy="512" r="172" fill="url(#b2nodeL)"/>
+    <circle cx="248" cy="512" r="172" fill="none" stroke="#FFFFFF" stroke-width="6" opacity="0.6"/>
+    <circle cx="248" cy="512" r="62" fill="#FFFFFF"/>
+    <!-- Node R -->
+    <circle cx="776" cy="512" r="172" fill="url(#b2nodeR)"/>
+    <circle cx="776" cy="512" r="172" fill="none" stroke="#FFFFFF" stroke-width="6" opacity="0.6"/>
+    <circle cx="776" cy="512" r="62" fill="#FFFFFF"/>
+    <!-- Glass overlays -->
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#b2top)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#b2bot)"/>
+    <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.4"/>
+  </g>
+</svg>

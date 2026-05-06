@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Relay — Concept 3: Interlocked Rings</title>
+  <defs>
+    <linearGradient id="r3bg" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#FFD089"/>
+      <stop offset="0.55" stop-color="#E89218"/>
+      <stop offset="1" stop-color="#4A2A00"/>
+    </linearGradient>
+    <linearGradient id="r3top" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.6"/>
+      <stop offset="0.4" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="r3bot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="r3ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#FFC872"/>
+    </linearGradient>
+    <clipPath id="r3clip">
+      <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228"/>
+    </clipPath>
+    <mask id="r3hole-l">
+      <rect x="0" y="0" width="1024" height="1024" fill="white"/>
+      <ellipse cx="380" cy="512" rx="138" ry="178" fill="black"/>
+    </mask>
+    <mask id="r3hole-r">
+      <rect x="0" y="0" width="1024" height="1024" fill="white"/>
+      <ellipse cx="644" cy="512" rx="138" ry="178" fill="black"/>
+    </mask>
+  </defs>
+  <g clip-path="url(#r3clip)">
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#r3bg)"/>
+    <!-- Left ring (under) -->
+    <g mask="url(#r3hole-l)">
+      <ellipse cx="380" cy="512" rx="220" ry="260" fill="url(#r3ring)"/>
+    </g>
+    <!-- Right ring on top -->
+    <g mask="url(#r3hole-r)">
+      <ellipse cx="644" cy="512" rx="220" ry="260" fill="url(#r3ring)"/>
+    </g>
+    <!-- Cross-over patch: left ring passes over the right at the top -->
+    <g mask="url(#r3hole-l)">
+      <path d="M 380 252
+               C 460 252 600 282 600 360
+               C 600 440 480 470 380 470 Z"
+            fill="url(#r3ring)"/>
+    </g>
+    <!-- Inner ring outlines -->
+    <ellipse cx="380" cy="512" rx="220" ry="260" fill="none" stroke="#FFFFFF" stroke-width="6" opacity="0.4"/>
+    <ellipse cx="644" cy="512" rx="220" ry="260" fill="none" stroke="#FFFFFF" stroke-width="6" opacity="0.4"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#r3top)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#r3bot)"/>
+    <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.4"/>
+  </g>
+</svg>

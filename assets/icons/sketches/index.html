@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenClaw — Icon Sketches</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    margin: 0;
+    padding: 32px;
+    background: #1c1c1e;
+    color: #f5f5f7;
+  }
+  h1 { font-weight: 600; font-size: 22px; margin: 0 0 4px; }
+  p.lede { color: #a1a1a6; margin: 0 0 32px; font-size: 13px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 28px 0 12px; color: #f5f5f7; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 1080px; }
+  .card {
+    background: #2c2c2e;
+    border: 1px solid #38383a;
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .card img { width: 100%; max-width: 240px; height: auto; display: block; border-radius: 12px; }
+  .card .preview-bg {
+    background: linear-gradient(135deg, #f4f4f6 0%, #c8c8cc 100%);
+    padding: 12px;
+    border-radius: 18px;
+    margin-bottom: 10px;
+  }
+  .card .label { font-size: 13px; font-weight: 500; color: #f5f5f7; margin-top: 4px; }
+  .card .sub { font-size: 11px; color: #a1a1a6; margin-top: 2px; }
+  .menubar-row .card { background: #f5f5f7; color: #1c1c1e; border-color: #d2d2d7; }
+  .menubar-row .preview-bg {
+    background: #1c1c1e;
+    padding: 10px 14px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .menubar-row img { filter: invert(1); width: 22px; height: 22px; max-width: none; border-radius: 0; }
+  .menubar-row .menubar-label { color: #fff; font-size: 13px; }
+  .menubar-row .label, .menubar-row .sub { color: #1c1c1e; }
+  .menubar-row .sub { color: #6e6e73; }
+</style>
+</head>
+<body>
+  <h1>OpenClaw — Icon Sketches</h1>
+  <p class="lede">Liquid Glass Tahoe style. SVG previews; final layered authoring in Icon Composer.</p>
+
+  <h2>Bridge.app — cyan</h2>
+  <div class="row">
+    <div class="card"><div class="preview-bg"><img src="bridge-1.svg" alt=""></div><div class="label">B1 — Spanning Arc</div><div class="sub">classic bridge silhouette, two glow piers</div></div>
+    <div class="card"><div class="preview-bg"><img src="bridge-2.svg" alt=""></div><div class="label">B2 — Linked Nodes</div><div class="sub">two spheres + glass beam</div></div>
+    <div class="card"><div class="preview-bg"><img src="bridge-3.svg" alt=""></div><div class="label">B3 — Hub Spire</div><div class="sub">central core + orbiting nodes + pulse</div></div>
+  </div>
+
+  <h2>Relay.app — amber</h2>
+  <div class="row">
+    <div class="card"><div class="preview-bg"><img src="relay-1.svg" alt=""></div><div class="label">R1 — Bubble + Waveform</div><div class="sub">message + signal</div></div>
+    <div class="card"><div class="preview-bg"><img src="relay-2.svg" alt=""></div><div class="label">R2 — Pulse Antenna</div><div class="sub">mast + 3 broadcast arcs</div></div>
+    <div class="card"><div class="preview-bg"><img src="relay-3.svg" alt=""></div><div class="label">R3 — Interlocked Rings</div><div class="sub">handoff / chain</div></div>
+  </div>
+
+  <h2>Menu bar — monochrome template (relay user)</h2>
+  <div class="row menubar-row">
+    <div class="card">
+      <div class="preview-bg"><img src="menubar-1.svg" alt=""><span class="menubar-label">12:34</span></div>
+      <div class="label">M1 — Antenna + Arcs</div><div class="sub">broadcast pattern</div>
+    </div>
+    <div class="card">
+      <div class="preview-bg"><img src="menubar-2.svg" alt=""><span class="menubar-label">12:34</span></div>
+      <div class="label">M2 — Bubble + Dots</div><div class="sub">message indicator</div>
+    </div>
+    <div class="card">
+      <div class="preview-bg"><img src="menubar-3.svg" alt=""><span class="menubar-label">12:34</span></div>
+      <div class="label">M3 — Linked Nodes</div><div class="sub">handoff dot pair</div>
+    </div>
+  </div>
+</body>
+</html>

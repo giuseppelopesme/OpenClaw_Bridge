@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Bridge — Concept 3: Hub Spire</title>
+  <defs>
+    <linearGradient id="b3bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#A6E3F7"/>
+      <stop offset="0.5" stop-color="#3BA3D9"/>
+      <stop offset="1" stop-color="#062E48"/>
+    </linearGradient>
+    <linearGradient id="b3top" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="b3bot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.6" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.4"/>
+    </linearGradient>
+    <radialGradient id="b3core" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.4" stop-color="#E0F6FF"/>
+      <stop offset="1" stop-color="#5BC0EB"/>
+    </radialGradient>
+    <clipPath id="b3clip">
+      <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#b3clip)">
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#b3bg)"/>
+    <!-- Concentric pulse rings -->
+    <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+      <circle cx="512" cy="512" r="380" stroke-width="3" opacity="0.18"/>
+      <circle cx="512" cy="512" r="300" stroke-width="4" opacity="0.28"/>
+      <circle cx="512" cy="512" r="220" stroke-width="5" opacity="0.45"/>
+      <circle cx="512" cy="512" r="150" stroke-width="6" opacity="0.7"/>
+    </g>
+    <!-- Three nodes orbiting -->
+    <g>
+      <circle cx="512" cy="200" r="44" fill="#FFFFFF"/>
+      <circle cx="512" cy="200" r="44" fill="none" stroke="#FFFFFF" stroke-width="3" opacity="0.4" transform="scale(1.6) translate(-192 -75)"/>
+      <circle cx="242" cy="668" r="44" fill="#FFFFFF"/>
+      <circle cx="782" cy="668" r="44" fill="#FFFFFF"/>
+    </g>
+    <!-- Connection lines -->
+    <g stroke="#FFFFFF" stroke-width="6" opacity="0.7" stroke-linecap="round">
+      <line x1="512" y1="244" x2="512" y2="380"/>
+      <line x1="282" y1="644" x2="416" y2="566"/>
+      <line x1="742" y1="644" x2="608" y2="566"/>
+    </g>
+    <!-- Core -->
+    <circle cx="512" cy="512" r="120" fill="url(#b3core)"/>
+    <circle cx="512" cy="512" r="120" fill="none" stroke="#FFFFFF" stroke-width="4" opacity="0.85"/>
+    <circle cx="512" cy="512" r="42" fill="#0B4A6E"/>
+    <!-- Glass overlays -->
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#b3top)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#b3bot)"/>
+    <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.4"/>
+  </g>
+</svg>

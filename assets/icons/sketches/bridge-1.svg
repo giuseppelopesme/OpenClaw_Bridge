@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Bridge — Concept 1: Spanning Arc</title>
+  <defs>
+    <linearGradient id="b1bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8FD7F2"/>
+      <stop offset="0.45" stop-color="#3BA3D9"/>
+      <stop offset="1" stop-color="#0B4A6E"/>
+    </linearGradient>
+    <linearGradient id="b1top" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="b1bot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="b1arc" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#BEE7FA" stop-opacity="0.7"/>
+    </linearGradient>
+    <radialGradient id="b1node" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.45" stop-color="#E8F8FF"/>
+      <stop offset="1" stop-color="#5BC0EB" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="b1clip">
+      <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#b1clip)">
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#b1bg)"/>
+    <!-- soft inner glow -->
+    <circle cx="512" cy="380" r="380" fill="#FFFFFF" opacity="0.12"/>
+    <!-- Arc deck -->
+    <path d="M 160 720 Q 512 200 864 720" stroke="url(#b1arc)" stroke-width="64" fill="none" stroke-linecap="round"/>
+    <!-- Arc inner highlight -->
+    <path d="M 180 718 Q 512 230 844 718" stroke="#FFFFFF" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.7"/>
+    <!-- Cables -->
+    <g stroke="#FFFFFF" stroke-width="6" opacity="0.55" stroke-linecap="round">
+      <line x1="280" y1="540" x2="280" y2="760"/>
+      <line x1="380" y1="430" x2="380" y2="760"/>
+      <line x1="512" y1="395" x2="512" y2="760"/>
+      <line x1="644" y1="430" x2="644" y2="760"/>
+      <line x1="744" y1="540" x2="744" y2="760"/>
+    </g>
+    <!-- Deck base -->
+    <rect x="120" y="755" width="784" height="32" rx="16" fill="#FFFFFF" opacity="0.9"/>
+    <!-- Pier nodes -->
+    <circle cx="160" cy="720" r="110" fill="url(#b1node)"/>
+    <circle cx="864" cy="720" r="110" fill="url(#b1node)"/>
+    <circle cx="160" cy="720" r="34" fill="#FFFFFF"/>
+    <circle cx="864" cy="720" r="34" fill="#FFFFFF"/>
+    <!-- Glass overlays -->
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#b1top)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#b1bot)"/>
+    <!-- Edge highlight -->
+    <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.4"/>
+  </g>
+</svg>

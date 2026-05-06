@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" width="22" height="22">
+  <title>Menubar — Concept 2: Bubble + Dots</title>
+  <path d="M 3 7
+           Q 3 4.5 5.5 4.5
+           L 16.5 4.5
+           Q 19 4.5 19 7
+           L 19 13
+           Q 19 15.5 16.5 15.5
+           L 9.5 15.5
+           L 7 18.5
+           L 7.5 15.5
+           L 5.5 15.5
+           Q 3 15.5 3 13 Z"
+        fill="#000000"/>
+  <g fill="#FFFFFF">
+    <circle cx="7.5" cy="10" r="1.1"/>
+    <circle cx="11" cy="10" r="1.1"/>
+    <circle cx="14.5" cy="10" r="1.1"/>
+  </g>
+</svg>

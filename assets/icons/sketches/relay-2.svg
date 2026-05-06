@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Relay — Concept 2: Pulse Antenna</title>
+  <defs>
+    <linearGradient id="r2bg" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0" stop-color="#FFC56B"/>
+      <stop offset="0.55" stop-color="#E8911A"/>
+      <stop offset="1" stop-color="#5C3500"/>
+    </linearGradient>
+    <linearGradient id="r2top" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.6"/>
+      <stop offset="0.4" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="r2bot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="r2mast" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#FFD89A"/>
+    </linearGradient>
+    <radialGradient id="r2tip" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.5" stop-color="#FFEFC8"/>
+      <stop offset="1" stop-color="#F5A524" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="r2clip">
+      <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#r2clip)">
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#r2bg)"/>
+    <!-- Pulse arcs -->
+    <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+      <path d="M 240 460 Q 512 240 784 460" stroke-width="20" opacity="0.9"/>
+      <path d="M 180 500 Q 512 160 844 500" stroke-width="14" opacity="0.55"/>
+      <path d="M 120 540 Q 512 80 904 540" stroke-width="10" opacity="0.3"/>
+    </g>
+    <!-- Mast -->
+    <rect x="488" y="460" width="48" height="360" rx="24" fill="url(#r2mast)"/>
+    <!-- Base plate -->
+    <rect x="380" y="800" width="264" height="40" rx="20" fill="#FFFFFF" opacity="0.9"/>
+    <!-- Tip glow + bulb -->
+    <circle cx="512" cy="460" r="120" fill="url(#r2tip)"/>
+    <circle cx="512" cy="460" r="56" fill="#FFFFFF"/>
+    <circle cx="512" cy="460" r="56" fill="none" stroke="#F5A524" stroke-width="6"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#r2top)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#r2bot)"/>
+    <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.4"/>
+  </g>
+</svg>

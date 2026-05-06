@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Relay — Concept 1: Bubble + Waveform</title>
+  <defs>
+    <linearGradient id="r1bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD27A"/>
+      <stop offset="0.45" stop-color="#F5A524"/>
+      <stop offset="1" stop-color="#7A4500"/>
+    </linearGradient>
+    <linearGradient id="r1top" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="r1bot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="r1bub" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.97"/>
+      <stop offset="1" stop-color="#FFEACB" stop-opacity="0.85"/>
+    </linearGradient>
+    <clipPath id="r1clip">
+      <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#r1clip)">
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#r1bg)"/>
+    <circle cx="380" cy="320" r="320" fill="#FFFFFF" opacity="0.13"/>
+    <!-- Bubble -->
+    <path d="M 220 280
+             Q 220 200 300 200
+             L 724 200
+             Q 804 200 804 280
+             L 804 600
+             Q 804 680 724 680
+             L 460 680
+             L 360 800
+             L 380 680
+             L 300 680
+             Q 220 680 220 600 Z"
+          fill="url(#r1bub)"/>
+    <path d="M 220 280
+             Q 220 200 300 200
+             L 724 200
+             Q 804 200 804 280
+             L 804 600
+             Q 804 680 724 680
+             L 460 680
+             L 360 800
+             L 380 680
+             L 300 680
+             Q 220 680 220 600 Z"
+          fill="none" stroke="#FFFFFF" stroke-width="4" opacity="0.7"/>
+    <!-- Waveform inside bubble -->
+    <g fill="#F5A524" stroke="none">
+      <rect x="320" y="400" width="40" height="80" rx="20"/>
+      <rect x="400" y="350" width="40" height="180" rx="20"/>
+      <rect x="480" y="320" width="40" height="240" rx="20"/>
+      <rect x="560" y="370" width="40" height="140" rx="20"/>
+      <rect x="640" y="410" width="40" height="60" rx="20"/>
+    </g>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#r1top)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#r1bot)"/>
+    <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.4"/>
+  </g>
+</svg>
