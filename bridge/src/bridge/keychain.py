@@ -3,9 +3,9 @@
 One Keychain item per actor:
 
 - service: the module-level `SERVICE_NAME` constant
-  ("com.giuseppelopesme.openclaw.bridge")
-- account: the actor identifier (e.g. "relay.clu", "brain.clu",
-  "cli.giuseppelopes")
+  ("me.lopes.openclaw.bridge")
+- account: the actor identifier (e.g. "relay.<account>",
+  "brain.<agent>", "cli.<account>")
 - password: a JSON blob shaped like
 
       {
@@ -46,7 +46,7 @@ from typing import Final, Protocol
 
 import keyring
 
-SERVICE_NAME: Final[str] = "com.giuseppelopesme.openclaw.bridge"
+SERVICE_NAME: Final[str] = "me.lopes.openclaw.bridge"
 _MANIFEST_ACCOUNT: Final[str] = "_actors_"
 
 

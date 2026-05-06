@@ -20,7 +20,7 @@ so the existing ``POST /v1/imessage/sent`` handler in
 
 ### Scopes
 
-- ``agent:drafts:write``  — ``POST /v1/agent/drafts``     (CLU)
+- ``agent:drafts:write``  — ``POST /v1/agent/drafts``     (the brain)
 - ``agent:drafts:read``   — ``GET  /v1/agent/drafts*``    (operator CLI, future viewers)
 - ``agent:drafts:approve``— ``PATCH /v1/agent/drafts/{id}`` (operator CLI)
 
@@ -55,7 +55,12 @@ logger = logging.getLogger("bridge.routes.agent")
 
 router = APIRouter(tags=["agent"])
 
-AgentName = Literal["clu", "tron", "flynn"]
+# Agent identity — well-formed lowercase identifier (1–32 chars, leading
+# letter, alphanumerics/underscore). The bridge accepts any name; the
+# operator's deployment chooses one and threads it through topic names,
+# Keychain actor keys, and the brain's runtime config.
+_AGENT_NAME_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
+AgentName = Annotated[str, Field(pattern=_AGENT_NAME_PATTERN)]
 ChannelName = Literal["imessage", "email"]
 DraftStatus = Literal["pending", "approved", "rejected", "sent", "send_failed"]
 

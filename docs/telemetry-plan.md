@@ -7,7 +7,7 @@ status: active
 
 # Telemetry Plan
 
-The goal is narrow: have enough data after two weeks of CLU running to decide rationally whether to install a local LLM, what size, and for which task classes. Without this data the decision is vibes.
+The goal is narrow: have enough data after two weeks of the brain running to decide rationally whether to install a local LLM, what size, and for which task classes. Without this data the decision is vibes.
 
 ## What we record
 
@@ -17,7 +17,7 @@ Every `POST /v1/llm/complete` call writes one row to a SQLite database at `/User
 |---|---|---|
 | `id` | uuid | primary key |
 | `timestamp` | iso8601 | UTC |
-| `actor` | text | `brain.clu`, `brain.tron`, `brain.flynn`, `cli.giuseppelopes` |
+| `actor` | text | `brain.<agent>`, `relay.<account>`, `cli.<account>` |
 | `task_class` | text | `triage`, `classify`, `reason`, `draft`, `summarise` |
 | `provider` | text | `openrouter`, `local` |
 | `model` | text | full model id (e.g. `anthropic/claude-haiku-4.5`) |
@@ -36,14 +36,14 @@ Schema migrations live in `bridge/migrations/` and run on bridge startup.
 Separate JSONL file at `/Users/giuseppelopes/.openclaw/access.log`, rotated daily, retained 30 days. One line per HTTP request to the bridge:
 
 ```json
-{"ts":"2026-04-29T10:00:00Z","request_id":"...","method":"POST","path":"/v1/llm/complete","scope_used":"llm:call","actor":"brain.clu","status":200,"duration_ms":1234,"idempotency_replay":false}
+{"ts":"2026-04-29T10:00:00Z","request_id":"...","method":"POST","path":"/v1/llm/complete","scope_used":"llm:call","actor":"brain.agent","status":200,"duration_ms":1234,"idempotency_replay":false}
 ```
 
 Used for incident debugging, not analysis. The telemetry DB is the analysis surface.
 
 ## Decision frame for local LLM (T+14 days)
 
-After two weeks of real CLU usage, run the analysis script at `tools/analyse-telemetry.py` which produces:
+After two weeks of real usage, run the analysis script at `tools/analyse-telemetry.py` which produces:
 
 1. **Total run-rate**: monthly cost projection at OpenRouter, in USD and EUR
 2. **Cost distribution by task_class**: percentage of total cost spent on each class

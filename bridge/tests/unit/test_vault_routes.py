@@ -8,7 +8,7 @@ import pytest
 from _support import TokenFixture
 from fastapi.testclient import TestClient
 
-AUTH_OK = {"Authorization": "Bearer dev-token-clu"}
+AUTH_OK = {"Authorization": "Bearer dev-token-agent"}
 
 
 def test_vault_read_happy_path(
@@ -82,7 +82,7 @@ def test_vault_write_create_returns_201_and_logs_changed(
     ]
     assert matches, "expected vault.changed log line"
     assert matches[0].__dict__.get("path") == "Inbox/new.md"
-    assert matches[0].__dict__.get("actor") == "brain.clu"
+    assert matches[0].__dict__.get("actor") == "brain.agent"
 
 
 def test_vault_write_replace_returns_200(

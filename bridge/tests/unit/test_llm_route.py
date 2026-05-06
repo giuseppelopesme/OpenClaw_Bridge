@@ -12,7 +12,7 @@ from bridge.providers.llm.router import LLMRouter
 from bridge.ratelimit import spec_for
 from fastapi.testclient import TestClient
 
-AUTH_OK = {"Authorization": "Bearer dev-token-clu"}
+AUTH_OK = {"Authorization": "Bearer dev-token-agent"}
 
 
 class _FakeProvider:
@@ -87,7 +87,7 @@ def test_llm_complete_writes_telemetry_row_on_success(
     ).fetchall()
     assert len(rows) == 1
     actor, task_class, provider, model, p_t, c_t, cost, latency, status, err = rows[0]
-    assert actor == "brain.clu"
+    assert actor == "brain.agent"
     assert task_class == "triage"
     assert provider == "openrouter"
     assert model == "anthropic/claude-haiku-4.5"

@@ -4,9 +4,9 @@ Per `docs/event-bus.md`, every event is a JSON object with this envelope:
 
     {
       "event_id": "uuid",
-      "topic": "imessage.received.clu",
+      "topic": "imessage.received.agent",
       "published_at": "2026-04-29T10:00:00Z",
-      "publisher": "relay.clu",
+      "publisher": "relay.account",
       "schema_version": "1",
       "payload": { ... topic-specific ... }
     }

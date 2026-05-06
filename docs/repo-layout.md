@@ -97,24 +97,14 @@ OpenClaw_Bridge/
 │   │       ├── eventbus.py     # WebSocket subscriber helper
 │   │       ├── obsidian.py     # vault-write helpers
 │   │       └── llm.py          # task_class shortcuts
-│   ├── clu/
-│   │   ├── pyproject.toml
-│   │   └── src/clu/
-│   │       ├── main.py
-│   │       ├── handlers/       # one per event type subscribed to
-│   │       └── config.py
-│   ├── tron/
-│   │   └── …
-│   └── flynn/
-│       └── …
+│   └── agent/
+│       ├── pyproject.toml
+│       └── src/agent/
+│           ├── main.py
+│           ├── handlers/       # one per event type subscribed to
+│           └── config.py
 ├── ops/
-│   ├── launchd/
-│   │   ├── com.giuseppelopesme.openclaw.bridge.plist
-│   │   ├── com.giuseppelopesme.openclaw.redis.plist
-│   │   ├── com.giuseppelopesme.openclaw.relay.clu.plist
-│   │   ├── com.giuseppelopesme.openclaw.relay.tron.plist
-│   │   ├── com.giuseppelopesme.openclaw.relay.flynn.plist
-│   │   └── com.giuseppelopesme.openclaw.brain.clu.plist
+│   ├── launchd/                # historical — see note below
 │   ├── redis/redis.conf
 │   └── install.sh              # bootstraps from a fresh macOS
 ├── scripts/
@@ -130,7 +120,7 @@ OpenClaw_Bridge/
 
 ## Naming convention
 
-The reverse-DNS namespace for everything OpenClaw — Keychain service identifiers, launchd plist labels, anything else macOS expects in this form — is `com.giuseppelopesme.openclaw.<component>`. It matches the GitHub username (`giuseppelopesme`) for visual consistency. OpenClaw is personal infrastructure; it has no organisational owner. Do not introduce alternative namespaces (Glysk OÜ runs on the platform but does not own it).
+The reverse-DNS namespace for everything OpenClaw — Keychain service identifiers, launchd plist labels, bundle identifiers, anything else macOS expects in this form — is `me.lopes.openclaw.<component>`. OpenClaw is personal infrastructure; it has no organisational owner. Do not introduce alternative namespaces (Glysk OÜ runs on the platform but does not own it).
 
 ## Package boundaries
 
@@ -141,7 +131,7 @@ The boundaries below are enforced by `scripts/check-boundaries.sh` — a grep-ba
 - `brains/shared` is the typed SDK every brain uses to call the bridge. Generated from the OpenAPI spec. Never imports from `bridge/` (it consumes the spec, not the code).
 - `brains/{name}` knows only its own logic and `brains_shared`. Never imports from `bridge/` or `relays/`.
 
-The point is brutal: if Tron's brain breaks, it cannot bring down the bridge or CLU's relay. If a relay crashes, the bridge keeps serving. If the bridge restarts, relays and brains reconnect cleanly.
+The point is brutal: if the brain breaks, it cannot bring down the bridge or the relay. If the relay crashes, the bridge keeps serving. If the bridge restarts, the relay and brain reconnect cleanly.
 
 ## Tooling
 
@@ -185,10 +175,10 @@ Every workaround site carries an explicit `# uv 0.11.8 hidden-pth workaround` co
 
 `ops/install.sh` runs from a fresh macOS and is itself versioned. Steps:
 
-1. Create `clu`, `tron`, `flynn` users (idempotent)
+1. Create the relay's service-user account (operator picks the name; idempotent)
 2. Install Homebrew, Python 3.13, Redis, `uv`
 3. Clone the repo to `~/Developer/OpenClaw_Bridge`
-4. Generate Redis password and bridge token salt, store in macOS Keychain under service `com.giuseppelopesme.openclaw.bridge`
+4. Generate Redis password and bridge token salt, store in macOS Keychain under service `me.lopes.openclaw.bridge`
 5. Mint initial tokens for each component
 6. Install launchd plists (bridge → redis → relays → brains, in dependency order)
 7. Run health check
@@ -202,7 +192,7 @@ The whole bootstrap should be reproducible end-to-end in under 10 minutes on the
 Folded into the body above. Listed here for traceability against the original spec.
 
 - **Repo location**: `~/Developer/OpenClaw_Bridge` (was `~/openclaw`). Repo briefly lived inside iCloud Drive and was moved out after sync conflicts created duplicate `uv.lock` copies.
-- **Namespace**: `com.giuseppelopesme.openclaw.*` (was `com.glysk.openclaw.*`). OpenClaw is personal infrastructure with no organisational owner. Affects Keychain service identifier, six launchd plist filenames, and the GitHub repo path (now `giuseppelopesme/OpenClaw_Bridge`).
+- **Namespace**: `me.lopes.openclaw.*` (was `com.giuseppelopesme.openclaw.*`, before that `com.glysk.openclaw.*`). OpenClaw is personal infrastructure with no organisational owner. Affects Keychain service identifier, all launchd plist labels, and `.app` bundle identifiers. The GitHub repo path remains `giuseppelopesme/OpenClaw_Bridge`.
 - **Boundary enforcement**: `scripts/check-boundaries.sh` (was "ruff + custom rule" — ruff cannot express what the rule actually requires).
 - **Canonical launcher**: `./scripts/run-bridge.sh` (was `uv run uvicorn …`); workaround for the uv 0.11.8 hidden-`.pth` bug. See Operational notes.
 - **`uv run --no-sync` pattern**: required everywhere automation drives uv; same root cause.
@@ -246,6 +236,54 @@ Folded into the body above where the change is structural; listed here for trace
 - **Rate limiter**: `RateLimiter` now Redis-backed via an atomic Lua script keyed on `bucket:{actor}:{scope}`. Falls back to the in-memory map if Redis is unavailable.
 - **`/v1/health`**: real `redis` probe (`PING` with 2s timeout); `redis` is critical, others stubbed since Session 1 stay stubbed.
 - **`system.bridge.startup`**: lifespan publishes once Redis is wired; failures are non-fatal and logged.
-- **Ops**: `ops/redis/redis.conf` (loopback, no persistence, 256 MB memcap), `ops/launchd/com.giuseppelopesme.openclaw.redis.plist` (manual install per its own commentary), `scripts/run-redis.sh` (foreground launcher; pulls `requirepass` from Keychain).
+- **Ops**: `ops/redis/redis.conf` (loopback, no persistence, 256 MB memcap), `ops/launchd/me.lopes.openclaw.redis.plist` (manual install per its own commentary), `scripts/run-redis.sh` (foreground launcher; pulls `requirepass` from Keychain).
 - **Env additions**: `BRIDGE_REDIS_HOST`, `BRIDGE_REDIS_PORT`, `BRIDGE_REDIS_DB`. Password remains Keychain-only.
 - **Deps**: `redis>=5.2`, `websockets>=14.1` (runtime); `fakeredis[lua]>=2.20` (dev — pubsub + Lua-supporting fake for hermetic tests).
+
+
+---
+
+## Changelog — 2026-05-04 → 2026-05-06 (Sessions 5–10b deliveries — condensed)
+
+Body sections of this doc above were last revised on 2026-04-29 and have drifted in places. The notes below are the authoritative current state for everything that's changed. Body edits are a separate cleanup; for full details see git log on `giuseppelopesme/OpenClaw_Bridge`.
+
+### Namespace migration (10b Step 0)
+
+- All reverse-DNS strings — Keychain service identifiers, launchd plist labels, bundle identifiers — moved from `com.giuseppelopesme.openclaw.*` to `me.lopes.openclaw.*` on 2026-05-05.
+- Touches `bridge/src/bridge/{keychain,auth}.py`, `relays/imessage/src/relay/{config,launcher,keychain_reader}.py`, `bundle/relay/*`, `installer/scripts/postinstall`, `scripts/setup-relay-account.sh`. Live Keychain entries migrated via `scripts/migrate-keychain-namespace.sh` (one-shot; reads from old keychain or `--from <path>` to handle macOS-renamed keychains).
+- The "Naming convention" section above is stale — current rule is `me.lopes.openclaw.<component>`. The "(was X, before Y)" history is preserved in the existing changelog entries.
+
+### Apple bundles + pkg installer (Sessions 10a + 10b)
+
+Production install topology is now a single signed + notarized `.pkg`. The `ops/launchd/*.plist` paths shown in the Tree above are no longer the install mechanism.
+
+- `bundle/relay/` — `OpenClawRelay.app` (Developer-ID-signed, notarized, stapled). PyInstaller spec, `Info.plist.template`, `entitlements.plist`, `launchagent.plist.template` (with `__APP_PATH__`/`__LOG_DIR__`/`__AGENT_NAME__` placeholders), `build.sh`, `test_bundle.sh`.
+- `bundle/bridge/` — `OpenClawBridge.app` (Developer-ID-signed, notarized, stapled). Same shape as the relay, plus:
+    - `entry.py` — multi-mode entry the frozen binary dispatches on (`supervisor` / `bridge` / `brain`); the supervisor's `_build_default_children` spawns the same binary with the right argv when `sys.frozen`.
+    - `Contents/MacOS/redis-server` — Homebrew Redis 8.x copied in by `build.sh`, re-signed under our team. Supervisor spawns it as the first ordered child.
+    - `Contents/MacOS/openclaw-register` — Swift helper that calls `SMAppService.agent(plistName:).register()` / `unregister()` / `status()`. Built from `bundle/bridge/openclaw-register.swift` via `swiftc`.
+- `installer/` — distribution pkg (`MacOSBridgeForOpenClaw.pkg`).
+    - `Distribution.xml` (productbuild manifest), `scripts/postinstall` (chooses iMessage service-user via osascript, calls `openclaw-register register` in each user's Aqua session), `build-pkg.sh` (pkgbuild ×2 components → productbuild → productsign with Developer-ID Installer → notarytool → stapler), `uninstall.sh` (symmetric cleanup: SMAppService unregister, .app removal, receipts, per-user state, tccutil reset).
+
+### Bridge supervisor (10b Step 1)
+
+- New module `bridge/src/bridge/supervisor.py`. Owns three children with strict ordering (Redis → bridge → brain.agent), each gated on the previous's TCP readiness probe (loopback `connect()`, no HTTP). Auto-restart with exponential backoff (1→10s); poison-pill on 3 crashes in 30s (exits non-zero so launchd's ThrottleInterval can decide).
+- Test seam: `Child.ready_check` is an injectable callable; tests construct fakes that toggle a list of booleans. 9 unit tests cover start order, ready-gate timeout, restart-on-crash, poison-pill, graceful shutdown, mid-gate shutdown, three-child chain.
+- Production launchers: `scripts/run-supervisor.sh` (canonical), with `scripts/run-bridge.sh` and `scripts/run-brain.sh` retained as dev/test entry points for the bridge alone or brain alone.
+
+### SMAppService registration (10b Step 3)
+
+- Both LaunchAgents are registered programmatically via the bundled Swift helper. No plists copied to `~/Library/LaunchAgents/` — the plists live inside the .app at `Contents/Library/LaunchAgents/me.lopes.openclaw.{bridge,relay}.plist` and use `BundleProgram` (relative path) so they survive .app moves.
+- Login Items / App Background Activity displays bundle display names ("MacOS Bridge for OpenClaw" / "OpenClaw Relay"), not the Developer-ID team name.
+- Lessons (encoded in build.sh comments): `SMAppService.agent(plistName:)` takes the bare filename, not a relative path; `codesign --deep` only walks `Contents/{MacOS,Frameworks,PlugIns}/` (not Resources/), so helper Mach-Os belong in `MacOS/`; helpers must be re-signed in a second pass with `--identifier me.lopes.openclaw.<bundle>.<helper>` AND `--entitlements` preserved (otherwise `cs.disable-library-validation` is stripped and redis-server fails to dlopen Homebrew openssl under hardened runtime).
+
+### Bootstrap is now the .pkg
+
+The `## Bootstrap` section above describes a fresh-host shell-based bootstrap — that path is retired for production. Today's flow:
+
+1. `brew install redis` is no longer required for production (the .app bundles its own redis-server). Operator does need a Homebrew Python 3.13 + uv only for *development*.
+2. Operator (admin) runs `bundle/bridge/build.sh`, `bundle/relay/build.sh`, `installer/build-pkg.sh` once with `TEAM_ID` / `DEV_ID_IDENTITY` / `DEV_ID_INSTALLER_IDENTITY` / `NOTARY_PROFILE` env vars. Output: `installer/dist/MacOSBridgeForOpenClaw.pkg`.
+3. End-user double-clicks the .pkg. Postinstall picks the iMessage service user via osascript, registers both LaunchAgents via SMAppService. Bridge starts immediately (Redis + uvicorn + brain.agent under one supervisor).
+4. End-user clicks Allow on the TCC prompts as the bridge actually uses each Apple API (Calendar, Contacts, Reminders, AppleEvents). On the service user's first FUS-in: 2 prompts (Full Disk Access for `chat.db`, Automation: Messages.app).
+
+`scripts/migrate-keychain-namespace.sh` is the one-shot migration tool for in-place namespace upgrades on hosts that ran earlier sessions.

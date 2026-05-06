@@ -180,10 +180,7 @@ components:
     DraftCreateRequest:
       properties:
         agent:
-          enum:
-          - clu
-          - tron
-          - flynn
+          pattern: ^[a-z][a-z0-9_]{0,31}$
           title: Agent
           type: string
         body:
@@ -407,10 +404,7 @@ components:
     IMessageInboundRequest:
       properties:
         agent:
-          enum:
-          - clu
-          - tron
-          - flynn
+          pattern: ^[a-z][a-z0-9_]{0,31}$
           title: Agent
           type: string
         body:
@@ -457,11 +451,7 @@ components:
           title: Body
           type: string
         from:
-          enum:
-          - clu
-          - tron
-          - flynn
-          - main
+          pattern: ^(main|[a-z][a-z0-9_]{0,31})$
           title: From
           type: string
         service:
@@ -484,10 +474,7 @@ components:
     IMessageSentRequest:
       properties:
         agent:
-          enum:
-          - clu
-          - tron
-          - flynn
+          pattern: ^[a-z][a-z0-9_]{0,31}$
           title: Agent
           type: string
         body:
@@ -1086,10 +1073,7 @@ paths:
         required: false
         schema:
           anyOf:
-          - enum:
-            - clu
-            - tron
-            - flynn
+          - pattern: ^[a-z][a-z0-9_]{0,31}$
             type: string
           - type: 'null'
           title: Agent
@@ -1570,10 +1554,7 @@ paths:
         name: agent
         required: true
         schema:
-          enum:
-          - clu
-          - tron
-          - flynn
+          pattern: ^[a-z][a-z0-9_]{0,31}$
           title: Agent
           type: string
       - in: query

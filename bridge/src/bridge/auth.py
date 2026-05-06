@@ -1,6 +1,6 @@
 """Bearer-token authentication and scope checks.
 
-Tokens live in macOS Keychain under service `com.giuseppelopesme.openclaw.bridge`,
+Tokens live in macOS Keychain under service `me.lopes.openclaw.bridge`,
 one item per actor. The bridge enumerates them at startup, building an
 in-memory map from `sha256(token)` to `(actor, scopes)`. Both the current token
 and the rotation grace token (`previous_token`) are indexed.

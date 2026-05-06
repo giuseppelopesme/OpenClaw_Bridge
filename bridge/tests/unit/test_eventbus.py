@@ -16,8 +16,8 @@ from bridge.eventbus.subscriber import (
 
 def test_validate_publish_topic_accepts_two_to_four_segments() -> None:
     validate_publish_topic("vault.changed")
-    validate_publish_topic("imessage.received.clu")
-    validate_publish_topic("agent.tron.draft.pending")
+    validate_publish_topic("imessage.received.agent")
+    validate_publish_topic("agent.agent.draft.pending")
 
 
 def test_validate_publish_topic_rejects_one_segment() -> None:
@@ -57,7 +57,7 @@ def test_envelope_round_trips_through_json() -> None:
         event_id="evt-1",
         topic="vault.changed",
         published_at="2026-04-29T12:00:00+00:00",
-        publisher="brain.clu",
+        publisher="brain.agent",
         schema_version="1",
         payload={"path": "Inbox/x.md", "op": "create"},
     )
@@ -93,7 +93,7 @@ def test_publish_emits_envelope_on_topic() -> None:
             published = await publisher.publish(
                 "vault.changed",
                 {"path": "Inbox/x.md", "op": "create"},
-                publisher="brain.clu",
+                publisher="brain.agent",
             )
             await asyncio.wait_for(consumer, timeout=2.0)
 
@@ -101,7 +101,7 @@ def test_publish_emits_envelope_on_topic() -> None:
             env = received[0]
             assert env.event_id == published.event_id
             assert env.topic == "vault.changed"
-            assert env.publisher == "brain.clu"
+            assert env.publisher == "brain.agent"
             assert env.schema_version == "1"
             assert env.payload == {"path": "Inbox/x.md", "op": "create"}
         finally:
@@ -129,7 +129,7 @@ def test_publish_redis_error_raises_dependency_unavailable() -> None:
             await publisher.publish(
                 "vault.changed",
                 {"path": "x"},
-                publisher="brain.clu",
+                publisher="brain.agent",
             )
 
     asyncio.run(run())

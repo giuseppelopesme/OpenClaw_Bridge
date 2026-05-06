@@ -42,11 +42,11 @@ async def test_send_happy_path_returns_message_id() -> None:
         )
 
     async with _bridge_with(_h) as bc:
-        out = await send(bc, sender="clu", to="+39", body="hi")
+        out = await send(bc, sender="agent", to="+39", body="hi")
     assert out.message_id == "m-123"
     sent = captured["body"]
     assert isinstance(sent, dict)
-    assert sent["from"] == "clu"
+    assert sent["from"] == "agent"
     assert sent["to"] == "+39"
     assert sent["body"] == "hi"
 
@@ -67,5 +67,5 @@ async def test_send_502_raises_send_error() -> None:
 
     async with _bridge_with(_h) as bc:
         with pytest.raises(SendError) as excinfo:
-            await send(bc, sender="clu", to="+39", body="hi")
+            await send(bc, sender="agent", to="+39", body="hi")
     assert excinfo.value.status == 502

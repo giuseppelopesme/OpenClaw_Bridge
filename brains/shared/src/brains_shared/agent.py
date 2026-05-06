@@ -1,12 +1,17 @@
 """Agent draft helpers — thin wrappers over the generated client.
 
 Brains call ``create_draft`` after running their LLM pass. Operators
-(via the ``clu-drafts`` CLI) call ``list_drafts`` / ``get_draft`` /
+(via ``scripts/brain-drafts.py``) call ``list_drafts`` / ``get_draft`` /
 ``update_draft`` to inspect and approve.
 
-The bridge owns the draft lifecycle (P1a). These helpers just package
-the generated client's ``asyncio_detailed`` calls so callers get a
-typed dataclass + clear error envelope handling.
+The bridge owns the draft lifecycle. These helpers just package the
+generated client's ``asyncio_detailed`` calls so callers get a typed
+dataclass + clear error envelope handling.
+
+Agent identity: a free-form well-formed identifier (lowercase letter
+followed by lowercase alphanumerics or underscores, 1–32 chars). The
+bridge enforces the same pattern; sending anything else returns a 422
+error envelope.
 """
 
 from __future__ import annotations
@@ -22,9 +27,6 @@ from brains_shared._generated.api.agent import (
     patch_draft_v1_agent_drafts_draft_id_patch,
 )
 from brains_shared._generated.models.draft_create_request import DraftCreateRequest
-from brains_shared._generated.models.draft_create_request_agent import (
-    DraftCreateRequestAgent,
-)
 from brains_shared._generated.models.draft_create_request_channel import (
     DraftCreateRequestChannel,
 )
@@ -32,24 +34,18 @@ from brains_shared._generated.models.draft_patch_request import DraftPatchReques
 from brains_shared._generated.models.draft_patch_request_status_type_0 import (
     DraftPatchRequestStatusType0,
 )
-from brains_shared._generated.models.list_drafts_v1_agent_drafts_get_agent_type_0 import (
-    ListDraftsV1AgentDraftsGetAgentType0,
-)
 from brains_shared._generated.models.list_drafts_v1_agent_drafts_get_status_type_0 import (
     ListDraftsV1AgentDraftsGetStatusType0,
 )
 from brains_shared._generated.types import UNSET
 from brains_shared.client import BridgeClient
 
-AgentName = Literal["clu", "tron", "flynn"]
+# Agent identifiers are free-form strings now; channels and statuses
+# remain enumerated because they describe the bridge's internal state
+# machine, not a per-deployment identity.
 ChannelName = Literal["imessage", "email"]
 DraftStatus = Literal["pending", "approved", "rejected", "sent", "send_failed"]
 
-_AGENT_MAP: dict[str, DraftCreateRequestAgent] = {
-    "clu": DraftCreateRequestAgent.CLU,
-    "tron": DraftCreateRequestAgent.TRON,
-    "flynn": DraftCreateRequestAgent.FLYNN,
-}
 _CHANNEL_MAP: dict[str, DraftCreateRequestChannel] = {
     "imessage": DraftCreateRequestChannel.IMESSAGE,
     "email": DraftCreateRequestChannel.EMAIL,
@@ -60,11 +56,6 @@ _PATCH_STATUS_MAP: dict[str, DraftPatchRequestStatusType0] = {
     "rejected": DraftPatchRequestStatusType0.REJECTED,
     "sent": DraftPatchRequestStatusType0.SENT,
     "send_failed": DraftPatchRequestStatusType0.SEND_FAILED,
-}
-_LIST_AGENT_MAP: dict[str, ListDraftsV1AgentDraftsGetAgentType0] = {
-    "clu": ListDraftsV1AgentDraftsGetAgentType0.CLU,
-    "tron": ListDraftsV1AgentDraftsGetAgentType0.TRON,
-    "flynn": ListDraftsV1AgentDraftsGetAgentType0.FLYNN,
 }
 _LIST_STATUS_MAP: dict[str, ListDraftsV1AgentDraftsGetStatusType0] = {
     "pending": ListDraftsV1AgentDraftsGetStatusType0.PENDING,
@@ -167,7 +158,7 @@ def _str_or_none(value: object) -> str | None:
 async def create_draft(
     client: BridgeClient,
     *,
-    agent: AgentName,
+    agent: str,
     to_handle: str,
     body: str,
     channel: ChannelName = "imessage",
@@ -175,7 +166,7 @@ async def create_draft(
     preview: str | None = None,
 ) -> CreatedDraft:
     request_body = DraftCreateRequest(
-        agent=_AGENT_MAP[agent],
+        agent=agent,
         to_handle=to_handle,
         body=body,
         channel=_CHANNEL_MAP[channel],
@@ -215,13 +206,13 @@ async def create_draft(
 async def list_drafts(
     client: BridgeClient,
     *,
-    agent: AgentName | None = None,
+    agent: str | None = None,
     status: DraftStatus | None = None,
     limit: int = 50,
 ) -> list[Draft]:
     resp = await list_drafts_v1_agent_drafts_get.asyncio_detailed(
         client=client.get_inner(),
-        agent=_LIST_AGENT_MAP[agent] if agent is not None else UNSET,
+        agent=agent if agent is not None else UNSET,
         status=_LIST_STATUS_MAP[status] if status is not None else UNSET,
         limit=limit,
     )
@@ -268,7 +259,6 @@ async def update_draft(
 
 __all__ = [
     "AgentError",
-    "AgentName",
     "ChannelName",
     "CreatedDraft",
     "Draft",

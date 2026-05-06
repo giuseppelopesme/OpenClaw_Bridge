@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LaunchAgent for OpenClawBridge.app, registered via SMAppService.
+
+  This plist lives INSIDE the .app at
+  Contents/Library/LaunchAgents/me.lopes.openclaw.bridge.plist
+  and is consumed by SMAppService.agent(plistName:) at register time.
+  No copy ever lands in ~/Library/LaunchAgents/ — that's the legacy
+  flow we left behind so macOS Sequoia's Login Items / Background
+  Items panel labels the agent under the bundle's CFBundleDisplayName
+  ("MacOS Bridge for OpenClaw") instead of the developer cert team
+  name ("Giuseppe Lopes").
+
+  Why BundleProgram (and not ProgramArguments): the modern SMAppService
+  contract requires a path RELATIVE to the .app's Contents/ directory.
+  This way the agent is portable — the .app can be moved, reinstalled,
+  or relocated and the agent's reference stays valid.
+
+  Why no StandardOutPath / StandardErrorPath: launchd does not perform
+  ~ or $HOME expansion in plist values, and we cannot hardcode an
+  absolute log path here without locking us to a single user. The
+  supervisor (bridge.supervisor) redirects its own stdout/stderr to
+  ~/.openclaw/bridge.{out,err}.log on startup, so logs land in the
+  right per-user place regardless.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>me.lopes.openclaw.bridge</string>
+
+    <key>BundleProgram</key>
+    <string>Contents/MacOS/OpenClawBridge</string>
+
+    <!-- AssociatedBundleIdentifiers ties the agent to the parent .app
+         in Login Items, even though SMAppService already implies the
+         association. Keeping it as belt-and-braces. -->
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>me.lopes.openclaw.bridge</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- ThrottleInterval pairs with the supervisor's poison-pill detector:
+         when the supervisor exits non-zero after 3 child crashes in 30s,
+         this throttle keeps launchd from spinning the whole tree back
+         up immediately. 60 seconds gives time for the operator to look. -->
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>

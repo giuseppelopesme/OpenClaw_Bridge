@@ -3,7 +3,7 @@
 #
 # Run after bundle/relay/build.sh. Verifies every checkable property of
 # the bundle that does NOT require executing it (executing is part of
-# the operator-side install on clu's desktop). Each check exits non-zero
+# the operator-side install on the service-user's desktop). Each check exits non-zero
 # on failure, with a one-line diagnostic so the build log is grep-able.
 
 set -euo pipefail
@@ -29,14 +29,25 @@ fail() {
 [[ -f "${app_path}/Contents/Info.plist" ]] \
     || fail "Contents/Info.plist missing"
 
-[[ -f "${app_path}/Contents/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist" ]] \
-    || fail "bundled LaunchAgent plist missing"
+bundled_la="${app_path}/Contents/Library/LaunchAgents/me.lopes.openclaw.relay.plist"
+[[ -f "${bundled_la}" ]] \
+    || fail "bundled LaunchAgent plist missing (agent-agnostic name)"
+
+# The bundled LaunchAgent must set AGENT_NAME (= the brain identifier)
+# in EnvironmentVariables. AGENT_NAME is independent of the macOS user
+# account hosting the relay; the keychain actor key (relay.<account>)
+# is resolved at runtime from getpass.getuser() inside relay.launcher.
+# A bundle that ships without AGENT_NAME would default to "agent" inside
+# config.from_env, which works today but masks future regressions —
+# enforce the explicit declaration so this stays visible in code review.
+grep -q "<key>AGENT_NAME</key>" "${bundled_la}" \
+    || fail "bundled LaunchAgent template missing AGENT_NAME in EnvironmentVariables"
 
 # ---- Info.plist values ---------------------------------------------
 
 bundle_id="$(plutil -extract CFBundleIdentifier raw -o - "${app_path}/Contents/Info.plist")"
-[[ "${bundle_id}" == "com.giuseppelopesme.openclaw.relay.clu" ]] \
-    || fail "CFBundleIdentifier is '${bundle_id}', expected com.giuseppelopesme.openclaw.relay.clu"
+[[ "${bundle_id}" == "me.lopes.openclaw.relay" ]] \
+    || fail "CFBundleIdentifier is '${bundle_id}', expected me.lopes.openclaw.relay"
 
 # LSUIElement — plutil prints "true" or "1" depending on macOS version.
 ls_ui="$(plutil -extract LSUIElement raw -o - "${app_path}/Contents/Info.plist")"

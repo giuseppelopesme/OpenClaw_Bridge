@@ -6,9 +6,9 @@ Issues a fresh token; the prior token stays valid for 24h via the
 `--scopes` is supplied (which fully replaces them).
 
 Usage:
-    scripts/rotate-token.py --actor brain.clu
-    scripts/rotate-token.py --actor brain.clu --scopes vault:read,vault:write
-    scripts/rotate-token.py --actor brain.clu --grace-hours 24
+    scripts/rotate-token.py --actor brain.agent
+    scripts/rotate-token.py --actor brain.agent --scopes vault:read,vault:write
+    scripts/rotate-token.py --actor brain.agent --grace-hours 24
 """
 
 from __future__ import annotations

@@ -3,7 +3,7 @@
 PyInstaller spec, plist templates, entitlements, and build/test scripts
 for **OpenClawRelay.app** — the Developer-ID-signed, notarized .app
 bundle that runs the iMessage relay process. Replaces the
-`scripts/run-relay.sh` + `ops/launchd/com.giuseppelopesme.openclaw.relay.clu.plist`
+`scripts/run-relay.sh` + `ops/launchd/me.lopes.openclaw.relay.<agent>.plist`
 topology that shipped in Session 7.
 
 Why a `.app` exists at all: macOS Sequoia denies AppleEvents
@@ -20,7 +20,7 @@ the grant stick. See "Strategic shift" in
 | `pyinstaller.spec` | PyInstaller build definition. Pulls `relays/imessage/src/relay/launcher.py` as the entry point; bundles only the relay package + httpx (the relay's only declared dep). |
 | `Info.plist.template` | Real `Info.plist`. Injected into the .app by `build.sh` after PyInstaller's BUNDLE step. `__VERSION__` is replaced with the package version from `relays/imessage/pyproject.toml`. |
 | `entitlements.plist` | Code-signing entitlements. See "Entitlements rationale" below. Comments are kept out of the XML body — `codesign`'s AMFI parser rejects multi-line inline comments even when `plutil -lint` accepts them. |
-| `launchagent.plist.template` | LaunchAgent that starts the .app at user login. Bundled at `Contents/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist` inside the .app; the install step copies it into `~/Library/LaunchAgents/` and substitutes `__APP_PATH__` + `__LOG_DIR__`. |
+| `launchagent.plist.template` | LaunchAgent that starts the .app at user login. Bundled at `Contents/Library/LaunchAgents/me.lopes.openclaw.relay.plist` (account-agnostic) inside the .app; SMAppService consumes it directly from inside the .app — no copy lands in `~/Library/LaunchAgents/`. The plist sets `AGENT_NAME=agent` (the brain's default identifier), and the launcher derives the keychain actor key from `getpass.getuser()` at runtime, so the same signed bundle works for any macOS user account. |
 | `build.sh` | Build → codesign → notarize → staple. Idempotent. Reads `TEAM_ID`, `DEV_ID_IDENTITY`, `NOTARY_PROFILE` from env. |
 | `test_bundle.sh` | Post-build smoke test. Verifies bundle structure, Info.plist values, hardened-runtime signing, entitlements, Gatekeeper acceptance, stapled ticket. |
 | `dist/` | Build output. Not checked in. `OpenClawRelay.app` and `OpenClawRelay.zip` (notarization payload) live here. |
@@ -85,23 +85,27 @@ to disentangle.
 ```
 $ export TEAM_ID=283UY8S778
 $ export DEV_ID_IDENTITY="Developer ID Application: Giuseppe Lopes (283UY8S778)"
-$ export NOTARY_PROFILE=openclaw-notary
+$ export NOTARY_PROFILE=MacOs-OpenClaw.Notary
 $ bundle/relay/build.sh         # ~3 minutes (notarization is the long pole)
 $ bundle/relay/test_bundle.sh   # ~5 seconds; fails fast if anything is off
 ```
 
 After both pass: `bundle/relay/dist/OpenClawRelay.app` is ready to ship.
-The operator-side install lives in `scripts/setup-clu-account.sh`.
+The operator-side install lives in `scripts/setup-relay-account.sh`.
 
 ## Caveats / open issues
 
-- **Per-agent variants.** This bundle is hardcoded to agent `clu`
-  (CFBundleIdentifier ends in `.relay.clu`, the bundled LaunchAgent
-  label is `com.giuseppelopesme.openclaw.relay.clu`). When TRON and
-  FLYNN land, the natural shape is to parameterise the spec so a
-  single build script produces three .apps (`bundle/relay/build.sh
-  --agent tron`, etc.). Out of scope for Session 10a — first pattern
-  needs to ship and prove out before generalising.
+- **One agent-agnostic, account-agnostic bundle.** The .app bundle
+  has CFBundleIdentifier `me.lopes.openclaw.relay` (no agent suffix)
+  and the bundled LaunchAgent sets `AGENT_NAME=agent` directly in
+  `EnvironmentVariables` — the brain package's default identifier.
+  The keychain actor key (`relay.<account>`) is resolved at runtime
+  from `getpass.getuser()`, so the same signed binary works for any
+  macOS user account that registers it. The runtime config validates
+  `AGENT_NAME` against `^[a-z][a-z0-9_]{0,31}$` so a malformed name
+  surfaces as a startup error rather than a silent mis-route.
+  Operators running multiple brains can override `AGENT_NAME` in the
+  bundled plist before signing.
 - **No CI yet.** `build.sh` requires the operator's signing identity
   and notarytool credentials, which are not (and should not be) in
   CI's hands. When CI does happen, the build artefact will need to be

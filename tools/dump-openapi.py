@@ -35,7 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_PATHS = [
     REPO_ROOT / "bridge" / "src",
     REPO_ROOT / "brains" / "shared" / "src",
-    REPO_ROOT / "brains" / "clu" / "src",
+    REPO_ROOT / "brains" / "agent" / "src",
     REPO_ROOT / "relays" / "imessage" / "src",
 ]
 TARGET = REPO_ROOT / "docs" / "openapi-v1.yaml"

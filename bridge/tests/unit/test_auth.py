@@ -44,20 +44,20 @@ def test_protected_endpoint_returns_200_with_valid_token(
     client: TestClient,
     tokens: list[TokenFixture],
 ) -> None:
-    good = next(f for f in tokens if f.actor == "brain.clu")
+    good = next(f for f in tokens if f.actor == "brain.agent")
     resp = client.get(
         "/v1/auth/whoami",
         headers={"Authorization": f"Bearer {good.plain}"},
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body == {"actor": "brain.clu", "scopes": sorted(good.scopes)}
+    assert body == {"actor": "brain.agent", "scopes": sorted(good.scopes)}
 
 
 def test_require_scope_raises_forbidden_when_scope_missing() -> None:
     """Unit test the scope-check dependency without spinning up a full route."""
     check = require_scope("admin")
-    auth = AuthContext(actor="brain.clu", scopes=frozenset({"llm:call"}))
+    auth = AuthContext(actor="brain.agent", scopes=frozenset({"llm:call"}))
     with pytest.raises(ForbiddenScope) as exc_info:
         check(auth)
     assert "admin" in str(exc_info.value)
@@ -65,7 +65,7 @@ def test_require_scope_raises_forbidden_when_scope_missing() -> None:
 
 def test_require_scope_passes_when_scope_present() -> None:
     check = require_scope("llm:call")
-    auth = AuthContext(actor="brain.clu", scopes=frozenset({"llm:call"}))
+    auth = AuthContext(actor="brain.agent", scopes=frozenset({"llm:call"}))
     result = check(auth)
     assert result is auth
 

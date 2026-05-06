@@ -1,0 +1,554 @@
+#!/bin/bash
+# Postinstall for MacOSBridgeForOpenClaw.pkg.
+#
+# Runs as root (Apple Installer.app's payload script context). At this
+# point the two .app bundles have already been laid down at:
+#
+#     /Applications/OpenClawBridge.app
+#     /Applications/OpenClawRelay.app
+#
+# This script:
+#
+#   1. Detects the main user (whoever launched the installer — found
+#      via the Installer.app process owner, FUS-resilient).
+#   2. Enumerates non-system user accounts (UID >= 501, not _* prefixed,
+#      not the main user) and shows an osascript multi-select dialog
+#      so the operator picks one or more iMessage service user accounts
+#      (whatever they were named in System Settings — the installer is
+#      account-agnostic). Choices display "Full Name (account)" with
+#      the full name pulled from `id -F`; round-tripped back to the
+#      bare account name via the trailing "(acct)" suffix. The dialog
+#      runs under the main user's GUI session via `launchctl asuser`;
+#      root has no GUI session of its own.
+#   3. Seeds Keychain tokens (idempotent, per service user):
+#        - relay.<service_user>: minted in main user's login keychain
+#          if missing; planted as a copy in EACH chosen service user's
+#          login keychain. If the service-side payload already matches
+#          the bridge-side, the write is skipped — keeps reinstalls
+#          silent (no macOS ACL prompts on no-op writes).
+#        - brain.<agent>: minted in main user's login keychain (the
+#          brain process runs as the main user under the supervisor).
+#          The agent name is fixed in code — it's the AI persona's
+#          identifier, not tied to any macOS user account.
+#        - _actors_ manifest: updated so the bridge enumerates the
+#          new actors at startup.
+#      When a service user's keychain is locked (their account isn't
+#      in an Aqua session), an OpenClaw-branded osascript dialog asks
+#      for THAT user's login password specifically — replacing the
+#      generic system "security wants to change access permissions"
+#      dialog that otherwise would fire and confuse operators on a
+#      multi-user Mac. The password is used to unlock the keychain
+#      via `security unlock-keychain`, then the write proceeds with
+#      no further prompts.
+#      On reinstall, existing tokens are preserved — no rotation that
+#      would invalidate live sessions.
+#   4. Writes /Library/Application Support/OpenClaw/config.json (main +
+#      service user, app paths, install timestamp).
+#   5. Registers both LaunchAgents via SMAppService.agent(plistName:)
+#      using the bundled openclaw-register Swift helper, run via
+#      `launchctl asuser` in each user's Aqua session. The plists live
+#      inside the .app at Contents/Library/LaunchAgents/ — no copies
+#      land in ~/Library/LaunchAgents/.
+#
+# Idempotent: re-running picks up existing tokens, replants the relay
+# copy, refreshes the manifest, and re-registers the LaunchAgents.
+
+set -euo pipefail
+
+log() { echo "openclaw-postinstall: $*"; }
+fail() {
+    log "ERROR: $*"
+    # Surface a critical alert under the console user's session so the
+    # operator sees something more useful than the generic Installer error.
+    if [[ -n "${main_uid:-}" ]]; then
+        /bin/launchctl asuser "${main_uid}" /usr/bin/osascript \
+            -e "display alert \"OpenClaw install failed\" message \"$1\" as critical" \
+            2>/dev/null || true
+    fi
+    exit 1
+}
+
+# ---- 1. main user (the human who started the install) ---------------
+
+# We deliberately do NOT use `stat -f "%Su" /dev/console` here. With
+# fast-user-switching, /dev/console reflects whichever account is
+# currently *foreground* on the GUI — which on a multi-account Mac
+# (main user + a service user) is often the wrong one. The
+# Installer.app process, by contrast, is always owned by whoever
+# actually launched the installer, regardless of FUS state.
+#
+# Find the human running Installer.app. Falls back to /dev/console
+# only if no Installer process is found (shouldn't happen during a
+# real install, but covers manual `installer -pkg` invocations).
+main_user="$(
+    /bin/ps -axo user=,comm= \
+    | awk '$2 ~ /Contents\/MacOS\/Installer$/ { print $1; exit }'
+)"
+if [[ -z "${main_user}" || "${main_user}" == "root" ]]; then
+    main_user="$(stat -f "%Su" /dev/console)"
+fi
+if [[ -z "${main_user}" || "${main_user}" == "root" ]]; then
+    fail "could not determine the user running the installer"
+fi
+main_uid="$(id -u "${main_user}")"
+main_home="$(/usr/bin/dscl . -read "/Users/${main_user}" NFSHomeDirectory \
+    | awk '{print $2}')"
+[[ -d "${main_home}" ]] || fail "main user home '${main_home}' does not exist"
+log "main user: ${main_user} (uid=${main_uid}, home=${main_home})"
+
+# ---- 2. service user picker (multi-select, full names) --------------
+
+# Enumerate human-ish accounts: UID >= 501, name not starting with `_`,
+# not the main user, home directory under /Users (excludes Guest, etc.).
+service_candidates_raw="$(
+    /usr/bin/dscl . -list /Users UniqueID \
+    | awk -v main="${main_user}" '
+        $2 >= 501 && $1 != main && $1 !~ /^_/ { print $1 }
+    '
+)"
+service_candidates_filtered=()
+while IFS= read -r u; do
+    [[ -z "${u}" ]] && continue
+    home="$(/usr/bin/dscl . -read "/Users/${u}" NFSHomeDirectory 2>/dev/null \
+        | awk '{print $2}')"
+    [[ "${home}" == /Users/* ]] && service_candidates_filtered+=("${u}")
+done <<< "${service_candidates_raw}"
+
+if [[ ${#service_candidates_filtered[@]} -eq 0 ]]; then
+    fail "no candidate service user accounts found. Create a separate macOS user account for the iMessage relay in System Settings → Users & Groups, then re-run the installer."
+fi
+
+# Build the AppleScript display list as "Real Name (account)" so the
+# operator picks a human-readable label rather than a Unix account
+# name. We round-trip the choice back to the account by parsing the
+# trailing "(account)" suffix. `id -F` returns the GECOS pw_gecos
+# field on macOS; we fall back to the bare account name when the
+# field is empty (common on freshly-created users).
+choice_label_for_account() {
+    local account="$1"
+    local realname
+    realname="$(id -F "${account}" 2>/dev/null || true)"
+    if [[ -n "${realname}" && "${realname}" != "${account}" ]]; then
+        printf '%s (%s)' "${realname}" "${account}"
+    else
+        printf '%s' "${account}"
+    fi
+}
+
+account_for_choice_label() {
+    # Reverse of choice_label_for_account. If the label has "(acct)" at
+    # the end, extract acct; otherwise the whole label is the account.
+    local label="$1"
+    if [[ "${label}" =~ \(([^\)]+)\)[[:space:]]*$ ]]; then
+        printf '%s' "${BASH_REMATCH[1]}"
+    else
+        printf '%s' "${label}"
+    fi
+}
+
+apple_list_items=""
+default_label=""
+for u in "${service_candidates_filtered[@]}"; do
+    label="$(choice_label_for_account "${u}")"
+    [[ -z "${default_label}" ]] && default_label="${label}"
+    # Escape backslashes and double-quotes for the AppleScript literal.
+    safe_label="${label//\\/\\\\}"
+    safe_label="${safe_label//\"/\\\"}"
+    if [[ -z "${apple_list_items}" ]]; then
+        apple_list_items="\"${safe_label}\""
+    else
+        apple_list_items="${apple_list_items}, \"${safe_label}\""
+    fi
+done
+safe_default_label="${default_label//\\/\\\\}"
+safe_default_label="${safe_default_label//\"/\\\"}"
+
+log "service user candidates: ${service_candidates_filtered[*]}"
+
+# Show a multi-select dialog. The operator can Cmd-click to pick more
+# than one account when they want the relay registered for several
+# service users at once. On cancel, osascript returns the literal
+# "false"; on selection it returns chosen labels joined by ", "
+# (AppleScript's default delimiter for lists).
+osascript_choice="$(
+    /bin/launchctl asuser "${main_uid}" /usr/bin/osascript -e "
+        choose from list {${apple_list_items}} \
+            with title \"MacOS Bridge for OpenClaw\" \
+            with prompt \"Which user account(s) run the iMessage relay?\
+\
+Hold Command (⌘) and click to pick more than one.\" \
+            default items {\"${safe_default_label}\"} \
+            OK button name \"Use These Accounts\" \
+            cancel button name \"Cancel Install\" \
+            multiple selections allowed true
+    " 2>/dev/null || true
+)"
+
+if [[ -z "${osascript_choice}" || "${osascript_choice}" == "false" ]]; then
+    fail "operator cancelled the service-user picker"
+fi
+
+# Parse "Label1, Label2, Label3" → array of account names.
+service_users=()
+service_uids=()
+service_homes=()
+service_keychains=()
+IFS_BACKUP="${IFS}"
+IFS=$'\n'
+for label in $(printf '%s\n' "${osascript_choice}" | /usr/bin/tr ',' '\n' | /usr/bin/sed 's/^ *//; s/ *$//'); do
+    [[ -z "${label}" ]] && continue
+    account="$(account_for_choice_label "${label}")"
+    [[ -z "${account}" ]] && continue
+    uid="$(id -u "${account}" 2>/dev/null || true)"
+    [[ -n "${uid}" ]] || fail "id lookup failed for service user '${account}'"
+    home="$(/usr/bin/dscl . -read "/Users/${account}" NFSHomeDirectory | awk '{print $2}')"
+    [[ -d "${home}" ]] || fail "service user home '${home}' does not exist"
+    service_users+=("${account}")
+    service_uids+=("${uid}")
+    service_homes+=("${home}")
+    service_keychains+=("${home}/Library/Keychains/login.keychain-db")
+done
+IFS="${IFS_BACKUP}"
+
+[[ ${#service_users[@]} -gt 0 ]] || fail "no valid service users in selection"
+
+for i in "${!service_users[@]}"; do
+    log "service user[${i}]: ${service_users[$i]} (uid=${service_uids[$i]}, home=${service_homes[$i]})"
+done
+
+# Backwards-compatible aliases for sections of the script that still
+# reason about a single primary service user (e.g. config.json's
+# `service_user` field, the legacy LaunchAgent-name suffix). Use the
+# first picked user as the canonical one. Multi-user installs still
+# get all their LaunchAgents + tokens registered correctly via the
+# arrays above.
+service_user="${service_users[0]}"
+service_uid="${service_uids[0]}"
+service_home="${service_homes[0]}"
+
+# ---- 3. resolve .app paths ------------------------------------------
+
+bridge_app="/Applications/OpenClawBridge.app"
+relay_app="/Applications/OpenClawRelay.app"
+[[ -d "${bridge_app}" ]] || fail "${bridge_app} not laid down by pkg"
+[[ -d "${relay_app}"  ]] || fail "${relay_app} not laid down by pkg"
+
+bridge_register="${bridge_app}/Contents/MacOS/openclaw-register"
+relay_register="${relay_app}/Contents/MacOS/openclaw-register"
+[[ -x "${bridge_register}" ]] || fail "${bridge_register} missing — bundle is malformed"
+[[ -x "${relay_register}"  ]] || fail "${relay_register} missing — bundle is malformed"
+
+# ---- 4. seed Keychain tokens (idempotent) ---------------------------
+
+# A truly fresh install has empty Keychains for both users. The bridge
+# supervisor needs `brain.<agent>` at startup; the relay needs
+# `relay.<service-user>` in the service user's keychain to authenticate
+# to the bridge. Seed both here so the install is fully self-contained.
+#
+# Token shape matches `bridge.keychain._serialise`:
+#   {"token": "<64-hex>", "scopes": ["..."]}
+# The bridge module enumerates actor tokens via the `_actors_` manifest
+# (a JSON list under the same service); we update that too so the
+# bridge sees freshly-minted tokens at startup.
+#
+# Idempotency: if an actor entry already exists in the bridge keychain
+# (typical on upgrade / reinstall), we keep the existing token rather
+# than minting a new one — avoids invalidating any in-flight sessions.
+# We DO always re-plant the relay token in the service user's keychain
+# (it's a copy of the bridge-side entry) so that after `tccutil reset`
+# style cleanups the service side stays in sync.
+#
+# `-A` (allow access to all applications) keeps the bridge supervisor,
+# the brain process, and the relay binary from triggering Keychain
+# Access dialogs at runtime. Personal infra; the alternative is enumerating
+# every binary path with `-T` flags.
+
+main_keychain="${main_home}/Library/Keychains/login.keychain-db"
+KEYCHAIN_SERVICE="me.lopes.openclaw.bridge"
+
+read_keychain_payload() {
+    # $1 keychain path, $2 actor → JSON envelope on stdout, exit non-zero if missing
+    /usr/bin/security find-generic-password \
+        -s "${KEYCHAIN_SERVICE}" -a "$2" -w "$1" 2>/dev/null
+}
+
+write_keychain_payload() {
+    # $1 keychain path, $2 actor, $3 JSON envelope
+    /usr/bin/security add-generic-password -U -A \
+        -s "${KEYCHAIN_SERVICE}" \
+        -a "$2" \
+        -w "$3" \
+        "$1"
+}
+
+ensure_actor_in_manifest() {
+    # $1 keychain path, $2 actor — adds to _actors_ list if absent.
+    local kc="$1" actor="$2"
+    local existing merged
+    existing=$(/usr/bin/security find-generic-password \
+        -s "${KEYCHAIN_SERVICE}" -a "_actors_" -w "${kc}" 2>/dev/null || echo "[]")
+    merged=$(/usr/bin/python3 - "${existing}" "${actor}" <<'PY'
+import json, sys
+existing = json.loads(sys.argv[1] or "[]")
+add = sys.argv[2]
+out = sorted(set(existing) | {add})
+print(json.dumps(out, ensure_ascii=False))
+PY
+)
+    /usr/bin/security add-generic-password -U -A \
+        -s "${KEYCHAIN_SERVICE}" \
+        -a "_actors_" \
+        -w "${merged}" \
+        "${kc}"
+}
+
+mint_hex_token() {
+    /usr/bin/openssl rand -hex 32
+}
+
+canonical_envelope() {
+    # Build the JSON payload in the SAME canonical form `bridge.keychain`
+    # uses (Python's json.dumps default — spaces after `:` and `,`). This
+    # matches bridge keychain entries minted via scripts/mint-token.py
+    # exactly, so the idempotent compare in seed_service_keychain_actor
+    # below succeeds on byte-equality. If we hand-rolled JSON in shell
+    # we'd produce a no-space variant and the compare would never match,
+    # forcing every reinstall to rewrite (and fire the macOS ACL prompt).
+    #
+    # $1: token (hex string), $2: comma-separated scopes
+    /usr/bin/python3 - "$1" "$2" <<'PY'
+import json, sys
+print(json.dumps({"token": sys.argv[1], "scopes": sys.argv[2].split(",")},
+                 ensure_ascii=False))
+PY
+}
+
+seed_main_keychain_actor() {
+    # $1 actor, $2 scopes (csv) → echoes JSON envelope; mints if missing.
+    local actor="$1" scopes_csv="$2"
+    local existing payload
+    existing=$(read_keychain_payload "${main_keychain}" "${actor}" || true)
+    if [[ -n "${existing}" ]]; then
+        log "  ${actor}: already in bridge keychain — keeping existing token"
+        printf '%s' "${existing}"
+        return
+    fi
+    local token
+    token=$(mint_hex_token)
+    payload="$(canonical_envelope "${token}" "${scopes_csv}")"
+    write_keychain_payload "${main_keychain}" "${actor}" "${payload}"
+    ensure_actor_in_manifest "${main_keychain}" "${actor}"
+    log "  ${actor}: minted on bridge keychain"
+    printf '%s' "${payload}"
+}
+
+# Branded password dialog → manual `security unlock-keychain`. We
+# replace what would otherwise be macOS's bare "security wants to
+# change access permissions of the 'me.lopes.openclaw.bridge' item"
+# system prompt — that prompt doesn't say whose password it wants
+# and lacks any OpenClaw branding. With an upfront branded osascript
+# dialog we name the service user explicitly, then unlock the
+# keychain ourselves so the subsequent `security add-generic-password`
+# write doesn't fire any system dialogs at all.
+#
+# Returns the password on stdout; empty string on Cancel.
+prompt_service_password() {
+    local svc_user="$1"
+    local realname
+    realname="$(id -F "${svc_user}" 2>/dev/null || true)"
+    local who_label="${svc_user}"
+    [[ -n "${realname}" && "${realname}" != "${svc_user}" ]] && \
+        who_label="${realname} (${svc_user})"
+    local title="MacOS Bridge for OpenClaw"
+    local body="You are about to approve Privacy and Security Settings for ${who_label}.
+
+Please enter ${svc_user}'s account login password to proceed.
+
+(This is the password ${svc_user} uses to log into macOS — NOT your admin password.)"
+    local safe_body="${body//\\/\\\\}"
+    safe_body="${safe_body//\"/\\\"}"
+    local safe_title="${title//\\/\\\\}"
+    safe_title="${safe_title//\"/\\\"}"
+    /bin/launchctl asuser "${main_uid}" /usr/bin/osascript -e "
+        try
+            set d to display dialog \"${safe_body}\" \
+                with title \"${safe_title}\" \
+                with icon caution \
+                default answer \"\" \
+                with hidden answer \
+                buttons {\"Cancel\", \"Approve\"} \
+                default button \"Approve\"
+            return text returned of d
+        on error
+            return \"\"
+        end try
+    " 2>/dev/null
+}
+
+seed_service_keychain_actor() {
+    # $1 service user, $2 service keychain path, $3 actor, $4 expected payload
+    #
+    # Goal: NEVER fire macOS's native "security wants to change access
+    # permissions" or keychain-unlock prompts — those say nothing about
+    # whose password they want and confuse operators on multi-user Macs.
+    # Strategy:
+    #   1. Idempotent skip: if existing payload byte-matches expected,
+    #      no write needed → no prompts. Both sides use canonical JSON
+    #      (canonical_envelope) so byte-compare is meaningful.
+    #   2. On mismatch: prompt operator with our branded osascript dialog
+    #      (names the service user explicitly). Operator types service
+    #      user's password into our UI.
+    #   3. Unlock the service keychain non-interactively via
+    #      `security unlock-keychain -p <password>`.
+    #   4. Delete the existing entry (if any), then add a fresh one with
+    #      `-A` (allow-all ACL). Delete + create avoids ACL-modify
+    #      prompts that `-U -A` would fire on legacy non-A entries.
+    local svc_user="$1" kc="$2" actor="$3" expected="$4"
+    local existing
+    existing=$(read_keychain_payload "${kc}" "${actor}" 2>/dev/null || true)
+    if [[ "${existing}" == "${expected}" ]]; then
+        log "  ${actor}: ${svc_user}'s keychain already has matching token — skipping write"
+        return 0
+    fi
+    local password
+    password="$(prompt_service_password "${svc_user}")"
+    if [[ -z "${password}" ]]; then
+        log "  ${actor}: operator cancelled password dialog for ${svc_user} — leaving relay token unplanted (relay won't run until fixed)"
+        return 1
+    fi
+    if ! /usr/bin/security unlock-keychain -p "${password}" "${kc}" 2>/dev/null; then
+        log "  ${actor}: WARN: ${svc_user}'s keychain unlock failed (wrong password?) — relay token unplanted"
+        return 1
+    fi
+    # Delete first (if exists) so the create can set ACL fresh without
+    # any "modify existing ACL" system prompts. Failure here is fine —
+    # the entry may simply not exist yet.
+    /usr/bin/security delete-generic-password \
+        -s "${KEYCHAIN_SERVICE}" \
+        -a "${actor}" \
+        "${kc}" 2>/dev/null || true
+    if /usr/bin/security add-generic-password -A \
+            -s "${KEYCHAIN_SERVICE}" \
+            -a "${actor}" \
+            -w "${expected}" \
+            "${kc}" 2>/dev/null; then
+        log "  ${actor}: planted in ${svc_user}'s keychain (delete + recreate, no system prompts)"
+        return 0
+    fi
+    log "  ${actor}: WARN: add-generic-password failed for ${svc_user}"
+    return 1
+}
+
+log "==> seeding Keychain tokens"
+[[ -f "${main_keychain}" ]] || fail "main user has no login keychain at ${main_keychain}"
+for i in "${!service_users[@]}"; do
+    [[ -f "${service_keychains[$i]}" ]] || \
+        fail "service user '${service_users[$i]}' has no login keychain at ${service_keychains[$i]} — they must log into macOS GUI at least once first"
+done
+
+# Brain token lives only on the bridge side — the brain process runs
+# as the main user under the supervisor, reads from the same keychain.
+# The actor name is `brain.<agent>` where <agent> is the AI persona's
+# fixed identifier (NOT a macOS user account). The single brain
+# currently shipping is named `clu`; that string is matched by
+# bridge.supervisor._load_brain_token() and is independent of which
+# macOS user account hosts the relay.
+BRAIN_AGENT="agent"
+seed_main_keychain_actor "brain.${BRAIN_AGENT}" \
+    "llm:call,vault:read,vault:write,events:subscribe,events:publish,agent:drafts:write" \
+    >/dev/null
+
+# Per-service-user: mint relay.<svc> on bridge side, plant a copy on
+# the service user's keychain. Multiple service users → multiple
+# password prompts (one per user whose keychain isn't already in
+# sync). Each prompt is branded and names the specific user.
+for i in "${!service_users[@]}"; do
+    svc="${service_users[$i]}"
+    svc_kc="${service_keychains[$i]}"
+    actor="relay.${svc}"
+    payload="$(seed_main_keychain_actor "${actor}" "imessage:relay")"
+    seed_service_keychain_actor "${svc}" "${svc_kc}" "${actor}" "${payload}" || true
+done
+
+# ---- 5. /Library/Application Support/OpenClaw/config.json -----------
+
+cfg_dir="/Library/Application Support/OpenClaw"
+mkdir -p "${cfg_dir}"
+service_users_json=$(/usr/bin/python3 - "${service_users[@]}" <<'PY'
+import json, sys
+print(json.dumps(sys.argv[1:]))
+PY
+)
+cat > "${cfg_dir}/config.json" <<JSON
+{
+  "main_user": "${main_user}",
+  "service_user": "${service_user}",
+  "service_users": ${service_users_json},
+  "bridge_app": "${bridge_app}",
+  "relay_app": "${relay_app}",
+  "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+JSON
+chmod 644 "${cfg_dir}/config.json"
+log "wrote ${cfg_dir}/config.json"
+
+# ---- 5. SMAppService registration -----------------------------------
+
+# Modern Login Items registration. The bundled openclaw-register Swift
+# helper calls SMAppService.agent(plistName:).register(), which:
+#   - reads the LaunchAgent plist FROM INSIDE the .app
+#     (Contents/Library/LaunchAgents/me.lopes.openclaw.<x>.plist)
+#   - registers it with launchd in the current user's gui domain
+#   - shows up in System Settings > Login Items > Background Items
+#     under the bundle's CFBundleDisplayName (e.g.
+#     "MacOS Bridge for OpenClaw"), NOT under the developer team name
+#
+# We invoke it via `launchctl asuser <uid>` so the registration lands
+# in the right user's gui domain. For each service user we only
+# attempt registration if they're currently in an Aqua session; if
+# they're not, the user will register manually on first FUS-in by
+# either double-clicking OpenClawRelay.app or running the helper.
+
+# SMAppService.agent(plistName:) takes JUST the plist's filename, NOT
+# the relative path under Contents/. The framework prepends the
+# Contents/Library/LaunchAgents/ prefix internally. Passing the full
+# relative path returns a generic Foundation._GenericObjCError 0
+# from .register() with no useful detail.
+bridge_plist="me.lopes.openclaw.bridge.plist"
+relay_plist="me.lopes.openclaw.relay.plist"
+
+# Bridge — main user is the one running the installer; their session
+# is by definition active.
+echo "==> registering bridge SMAppService for ${main_user}"
+if /bin/launchctl asuser "${main_uid}" \
+        "${bridge_register}" register "${bridge_plist}"; then
+    log "bridge registered in gui/${main_uid}"
+else
+    log "WARN: bridge SMAppService.register failed (continuing — manual register may be required)"
+fi
+
+# Relay — once per picked service user, only if that user has an
+# active Aqua session right now. `who` shows console sessions; we
+# look for the service user there. For users who are not currently
+# logged in, registration is deferred until their next login.
+console_users="$(/usr/bin/who | /usr/bin/awk '/console/ { print $1 }')"
+for i in "${!service_users[@]}"; do
+    svc="${service_users[$i]}"
+    svc_uid="${service_uids[$i]}"
+    if /usr/bin/printf '%s\n' "${console_users}" | /usr/bin/grep -Fxq "${svc}"; then
+        echo "==> registering relay SMAppService for ${svc}"
+        if /bin/launchctl asuser "${svc_uid}" \
+                "${relay_register}" register "${relay_plist}"; then
+            log "relay registered in gui/${svc_uid}"
+        else
+            log "WARN: relay SMAppService.register failed for ${svc}"
+        fi
+    else
+        log "relay SMAppService registration deferred — ${svc} is not in an active Aqua session"
+        log "  → log in as ${svc} once, or run as ${svc}:"
+        log "    /Applications/OpenClawRelay.app/Contents/MacOS/openclaw-register register ${relay_plist}"
+    fi
+done
+
+log "install complete"
+exit 0

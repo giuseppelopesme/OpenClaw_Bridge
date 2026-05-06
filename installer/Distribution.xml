@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Distribution definition for MacOSBridgeForOpenClaw.pkg.
+
+  productbuild consumes this file to wrap two component packages
+  (OpenClawBridge.app and OpenClawRelay.app) into a single distribution
+  installer with a postinstall script. The script picks the iMessage
+  service user via an osascript dialog and installs LaunchAgents in the
+  right user homes.
+
+  Identifier: me.lopes.openclaw.installer — matches the project's
+  reverse-DNS namespace. The pkg's user-facing display name is
+  "MacOS Bridge for OpenClaw" so the installer pane and TCC prompts
+  agree on the brand.
+
+  customize="never" hides the package selector — the user double-clicks
+  the .pkg, Apple Installer.app shows our welcome/conclusion panes and
+  installs everything. They cannot opt out of one bundle and not the
+  other; we ship them as a unit.
+-->
+<installer-gui-script minSpecVersion="2">
+    <title>MacOS Bridge for OpenClaw</title>
+    <organization>me.lopes.openclaw</organization>
+    <domains enable_localSystem="true"/>
+    <options
+        customize="never"
+        require-scripts="true"
+        rootVolumeOnly="true"
+        hostArchitectures="arm64"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="14.0"/>
+        </allowed-os-versions>
+    </volume-check>
+
+    <!-- Welcome and conclusion panes. Pulled in via productbuild's
+         resources flag (see installer/build-pkg.sh).
+         Plain text instead of HTML/RTF: Apple Installer's text/plain
+         renderer uses system label colours that auto-adapt to dark
+         and light mode. HTML and RTF panes had a regression in dark
+         mode where the WebKit panel produced white text on white
+         backgrounds for inline-styled blocks regardless of CSS
+         color-scheme declarations or RTF colour tables. -->
+    <welcome    file="welcome.txt"    mime-type="text/plain"/>
+    <conclusion file="conclusion.txt" mime-type="text/plain"/>
+
+    <!-- Single visible choice that pulls in both component packages.
+         The user has no opt-in/opt-out per the customize="never" above. -->
+    <choices-outline>
+        <line choice="default">
+            <line choice="me.lopes.openclaw.bridge.choice"/>
+            <line choice="me.lopes.openclaw.relay.choice"/>
+        </line>
+    </choices-outline>
+
+    <choice id="default" title="MacOS Bridge for OpenClaw"/>
+
+    <choice id="me.lopes.openclaw.bridge.choice" visible="false">
+        <pkg-ref id="me.lopes.openclaw.bridge.pkg"/>
+    </choice>
+
+    <choice id="me.lopes.openclaw.relay.choice" visible="false">
+        <pkg-ref id="me.lopes.openclaw.relay.pkg"/>
+    </choice>
+
+    <!-- Versions are substituted by build-pkg.sh from bridge/relay
+         pyproject.toml. The component pkg filenames are what
+         pkgbuild produces under /tmp/. -->
+    <pkg-ref id="me.lopes.openclaw.bridge.pkg"
+             version="__BRIDGE_VERSION__"
+             auth="root">OpenClawBridge.pkg</pkg-ref>
+    <pkg-ref id="me.lopes.openclaw.relay.pkg"
+             version="__RELAY_VERSION__"
+             auth="root">OpenClawRelay.pkg</pkg-ref>
+</installer-gui-script>

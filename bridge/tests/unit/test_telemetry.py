@@ -33,7 +33,7 @@ def tele_conn(tmp_path: Path) -> Iterator[sqlite3.Connection]:
 
 def _record(**overrides: object) -> LLMCallRecord:
     base: dict[str, object] = {
-        "actor": "brain.clu",
+        "actor": "brain.agent",
         "task_class": "triage",
         "provider": "openrouter",
         "model": "anthropic/claude-haiku-4.5",
@@ -52,7 +52,7 @@ def _record(**overrides: object) -> LLMCallRecord:
 def test_write_persists_row(tele_conn: sqlite3.Connection) -> None:
     write_llm_call(tele_conn, _record())
     rows = tele_conn.execute("SELECT actor, status, request_id FROM llm_calls").fetchall()
-    assert rows == [("brain.clu", "success", "req-1")]
+    assert rows == [("brain.agent", "success", "req-1")]
 
 
 def test_write_with_error_code(tele_conn: sqlite3.Connection) -> None:

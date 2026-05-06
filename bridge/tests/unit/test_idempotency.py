@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from bridge import idempotency
 
-AUTH_HEADER_FOR_VAULT = "Bearer dev-token-clu"
+AUTH_HEADER_FOR_VAULT = "Bearer dev-token-agent"
 
 
 def _vault_write_payload(

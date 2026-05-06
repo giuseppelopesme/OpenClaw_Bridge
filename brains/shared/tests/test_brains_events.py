@@ -47,12 +47,12 @@ async def test_publish_event_happy_path() -> None:
     bc = _bridge_with(_h)
     out = await publish_event(
         bc,
-        topic="agent.clu.draft.pending",
+        topic="agent.agent.draft.pending",
         payload={"draft_id": "abc", "channel": "imessage", "preview": "hi"},
     )
     body = captured["body"]
     assert isinstance(body, dict)
-    assert body["topic"] == "agent.clu.draft.pending"
+    assert body["topic"] == "agent.agent.draft.pending"
     assert body["payload"] == {"draft_id": "abc", "channel": "imessage", "preview": "hi"}
     assert out.event_id == "evt-1"
     assert out.published_at == "2026-05-02T10:00:00+00:00"
@@ -85,7 +85,7 @@ async def test_publish_event_omits_payload_when_none() -> None:
         )
 
     bc = _bridge_with(_h)
-    await publish_event(bc, topic="agent.clu.task.completed")
+    await publish_event(bc, topic="agent.agent.task.completed")
     body = captured["body"]
     assert isinstance(body, dict)
     # `payload` may be absent (UNSET serialises out) or present-and-empty;

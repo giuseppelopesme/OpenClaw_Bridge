@@ -13,7 +13,7 @@
 #                        Example: "Developer ID Application: Giuseppe Lopes (283UY8S778)"
 #     NOTARY_PROFILE     Name of the notarytool keychain profile created
 #                        with `xcrun notarytool store-credentials`.
-#                        Convention: openclaw-notary.
+#                        Convention: MacOs-OpenClaw.Notary.
 #
 # Idempotent: re-running cleans dist/ and build/ and rebuilds from
 # source. The notarization request is fresh each time (Apple does not
@@ -30,7 +30,7 @@ repo_root="$(cd "${bundle_dir}/../.." && pwd)"
 
 : "${TEAM_ID:?TEAM_ID env var required (10-char Apple Developer team id)}"
 : "${DEV_ID_IDENTITY:?DEV_ID_IDENTITY env var required (full \"Developer ID Application: ...\" string)}"
-: "${NOTARY_PROFILE:?NOTARY_PROFILE env var required (e.g. openclaw-notary)}"
+: "${NOTARY_PROFILE:?NOTARY_PROFILE env var required (e.g. MacOs-OpenClaw.Notary)}"
 
 # Length-check TEAM_ID — Apple's team IDs are uppercase alphanumerics, 10 chars.
 if [[ ! "${TEAM_ID}" =~ ^[A-Z0-9]{10}$ ]]; then
@@ -96,21 +96,62 @@ sed "s/__VERSION__/${relay_version}/g" \
     > "${app_path}/Contents/Info.plist"
 plutil -lint "${app_path}/Contents/Info.plist"
 
+echo "==> compiling SMAppService helper (openclaw-register) into Contents/MacOS/"
+# Same helper as Bridge.app — see bundle/bridge/build.sh for rationale.
+xcrun swiftc \
+    -O \
+    -target arm64-apple-macos14.0 \
+    -framework ServiceManagement \
+    -o "${app_path}/Contents/MacOS/openclaw-register" \
+    "${repo_root}/bundle/openclaw-register.swift"
+
 echo "==> bundling LaunchAgent template into Contents/Library/LaunchAgents/"
 mkdir -p "${app_path}/Contents/Library/LaunchAgents"
 cp "${bundle_dir}/launchagent.plist.template" \
-    "${app_path}/Contents/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist"
-plutil -lint "${app_path}/Contents/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist"
+    "${app_path}/Contents/Library/LaunchAgents/me.lopes.openclaw.relay.plist"
+plutil -lint "${app_path}/Contents/Library/LaunchAgents/me.lopes.openclaw.relay.plist"
 
 # ---- codesign --------------------------------------------------------
 
 echo "==> codesigning (Developer ID, hardened runtime, entitlements)"
-# Sign the bundle deeply: every Mach-O inside Frameworks/, MacOS/, etc.
-# `--options runtime` enables hardened runtime (required for notarization).
-# `--timestamp` embeds a secure timestamp (also required for notarization).
+# Pass 1: --deep recursive sign of the whole bundle. Every nested
+# Mach-O (Frameworks/, MacOS/) gets the right authority + hardened
+# runtime + secure timestamp from this pass.
 codesign \
     --force \
     --deep \
+    --options runtime \
+    --timestamp \
+    --entitlements "${bundle_dir}/entitlements.plist" \
+    --sign "${DEV_ID_IDENTITY}" \
+    "${app_path}"
+
+# Pass 2: re-sign openclaw-register with an --identifier that nests
+# under the .app's CFBundleIdentifier. Without this, SMAppService
+# rejects the .agent(plistName:).register() call because the helper's
+# auto-derived identifier ("openclaw-register") is unrelated to the
+# bundle it claims to register. See the matching block in
+# bundle/bridge/build.sh for the full rationale and the
+# `Foundation._GenericObjCError 0` symptom.
+echo "==> re-signing openclaw-register with nested bundle identifier"
+# Preserve --entitlements on the re-sign so the helper retains the
+# parent bundle's entitlement set (cs.disable-library-validation etc).
+# See bundle/bridge/build.sh for the dyld / hardened-runtime story
+# this matters for.
+codesign \
+    --force \
+    --options runtime \
+    --timestamp \
+    --identifier "me.lopes.openclaw.relay.openclaw-register" \
+    --entitlements "${bundle_dir}/entitlements.plist" \
+    --sign "${DEV_ID_IDENTITY}" \
+    "${app_path}/Contents/MacOS/openclaw-register"
+
+# Pass 3: refresh the outer bundle's CodeResources so it reflects the
+# helper's new identifier.
+echo "==> refreshing outer bundle CodeResources"
+codesign \
+    --force \
     --options runtime \
     --timestamp \
     --entitlements "${bundle_dir}/entitlements.plist" \

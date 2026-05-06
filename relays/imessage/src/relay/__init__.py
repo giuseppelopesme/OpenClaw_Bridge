@@ -1,9 +1,11 @@
 """OpenClaw iMessage relay.
 
-Runs as a single macOS user (`clu`, `tron`, or `flynn`) — one process per
-user. Polls ``~/Library/Messages/chat.db`` for new messages, posts them
-to the bridge as ``imessage.received.{agent}`` events, and dispatches
-queued outbound jobs the bridge hands back via long-poll.
+Runs as a separate macOS user account from the bridge — one process per
+account. The account is whatever the operator picked at install time;
+this package is account-agnostic. Polls
+``~/Library/Messages/chat.db`` for new messages, posts them to the
+bridge as ``imessage.received.{agent}`` events, and dispatches queued
+outbound jobs the bridge hands back via long-poll.
 
 The relay is intentionally thin: it never imports from ``bridge/`` or
 ``brains/``. All cross-component communication goes through the bridge's

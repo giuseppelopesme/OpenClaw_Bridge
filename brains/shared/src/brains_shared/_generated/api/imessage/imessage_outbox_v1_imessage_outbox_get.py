@@ -6,22 +6,18 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.http_validation_error import HTTPValidationError
-from ...models.imessage_outbox_v1_imessage_outbox_get_agent import (
-    ImessageOutboxV1ImessageOutboxGetAgent,
-)
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
-    agent: ImessageOutboxV1ImessageOutboxGetAgent,
+    agent: str,
     timeout_s: int | Unset = 25,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
-    json_agent = agent.value
-    params["agent"] = json_agent
+    params["agent"] = agent
 
     params["timeout_s"] = timeout_s
 
@@ -67,13 +63,13 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    agent: ImessageOutboxV1ImessageOutboxGetAgent,
+    agent: str,
     timeout_s: int | Unset = 25,
 ) -> Response[Any | HTTPValidationError]:
     """Imessage Outbox
 
     Args:
-        agent (ImessageOutboxV1ImessageOutboxGetAgent):
+        agent (str):
         timeout_s (int | Unset):  Default: 25.
 
     Raises:
@@ -99,13 +95,13 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    agent: ImessageOutboxV1ImessageOutboxGetAgent,
+    agent: str,
     timeout_s: int | Unset = 25,
 ) -> Any | HTTPValidationError | None:
     """Imessage Outbox
 
     Args:
-        agent (ImessageOutboxV1ImessageOutboxGetAgent):
+        agent (str):
         timeout_s (int | Unset):  Default: 25.
 
     Raises:
@@ -126,13 +122,13 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    agent: ImessageOutboxV1ImessageOutboxGetAgent,
+    agent: str,
     timeout_s: int | Unset = 25,
 ) -> Response[Any | HTTPValidationError]:
     """Imessage Outbox
 
     Args:
-        agent (ImessageOutboxV1ImessageOutboxGetAgent):
+        agent (str):
         timeout_s (int | Unset):  Default: 25.
 
     Raises:
@@ -156,13 +152,13 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    agent: ImessageOutboxV1ImessageOutboxGetAgent,
+    agent: str,
     timeout_s: int | Unset = 25,
 ) -> Any | HTTPValidationError | None:
     """Imessage Outbox
 
     Args:
-        agent (ImessageOutboxV1ImessageOutboxGetAgent):
+        agent (str):
         timeout_s (int | Unset):  Default: 25.
 
     Raises:

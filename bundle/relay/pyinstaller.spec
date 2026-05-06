@@ -102,7 +102,7 @@ app = BUNDLE(
     coll,
     name="OpenClawRelay.app",
     icon=None,
-    bundle_identifier="com.giuseppelopesme.openclaw.relay.clu",
+    bundle_identifier="me.lopes.openclaw.relay",
     version="0.1.0",
     info_plist={
         # Minimal stub — bundle/relay/build.sh overwrites this file with
@@ -111,7 +111,7 @@ app = BUNDLE(
         # doesn't fail validation.
         "CFBundleName": "OpenClawRelay",
         "CFBundleDisplayName": "OpenClaw Relay",
-        "CFBundleIdentifier": "com.giuseppelopesme.openclaw.relay.clu",
+        "CFBundleIdentifier": "me.lopes.openclaw.relay",
         "CFBundleVersion": "0.1.0",
         "CFBundleShortVersionString": "0.1.0",
         "CFBundlePackageType": "APPL",

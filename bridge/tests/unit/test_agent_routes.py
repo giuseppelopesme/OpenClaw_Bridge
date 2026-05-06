@@ -36,7 +36,7 @@ def _create_draft(
     resp = client.post(
         "/v1/agent/drafts",
         json={
-            "agent": "clu",
+            "agent": "agent",
             "channel": "imessage",
             "to_handle": to_handle,
             "body": body,
@@ -65,7 +65,7 @@ def test_create_draft_returns_201_with_id_and_status_pending(
 def test_create_draft_requires_write_scope(client: TestClient) -> None:
     resp = client.post(
         "/v1/agent/drafts",
-        json={"agent": "clu", "to_handle": "+39", "body": "x"},
+        json={"agent": "agent", "to_handle": "+39", "body": "x"},
         headers={"Authorization": "Bearer dev-token-empty"},
     )
     assert resp.status_code == 403
@@ -88,7 +88,7 @@ def test_create_draft_publishes_draft_pending_event(
     redis = client.app.state.redis_client
 
     async def _expect_event() -> str:
-        async with EventSubscriber(redis, "agent.clu.draft.pending") as sub:
+        async with EventSubscriber(redis, "agent.agent.draft.pending") as sub:
 
             async def _post() -> None:
                 await asyncio.to_thread(_create_draft, client)
@@ -99,7 +99,7 @@ def test_create_draft_publishes_draft_pending_event(
             return envelope.topic
 
     topic = asyncio.run(_expect_event())
-    assert topic == "agent.clu.draft.pending"
+    assert topic == "agent.agent.draft.pending"
 
 
 # -- GET list -------------------------------------------------------------
@@ -119,7 +119,7 @@ def test_list_drafts_filters_by_status(
     )
     assert resp.status_code == 200
 
-    pending = client.get("/v1/agent/drafts?agent=clu&status=pending", headers=READ)
+    pending = client.get("/v1/agent/drafts?agent=agent&status=pending", headers=READ)
     assert pending.status_code == 200
     pending_ids = [d["draft_id"] for d in pending.json()["drafts"]]
     assert a["draft_id"] in pending_ids
@@ -173,11 +173,11 @@ def test_patch_pending_to_approved_enqueues_to_outbox(
     assert body["approved_by"] == "giuseppe"
     assert body["dispatch_message_id"]
 
-    # The bridge RPUSHed the dispatch onto imessage:outbound:clu. Pop and verify.
+    # The bridge RPUSHed the dispatch onto imessage:outbound:agent. Pop and verify.
     redis = client.app.state.redis_client
 
     async def _peek() -> dict[str, object] | None:
-        raw = await redis.lpop("imessage:outbound:clu")
+        raw = await redis.lpop("imessage:outbound:agent")
         if raw is None:
             return None
         return json.loads(raw.decode("utf-8"))
@@ -198,7 +198,7 @@ def test_patch_publishes_draft_approved_event(
     redis = client.app.state.redis_client
 
     async def _expect_approved() -> str:
-        async with EventSubscriber(redis, "agent.clu.draft.approved") as sub:
+        async with EventSubscriber(redis, "agent.agent.draft.approved") as sub:
 
             async def _patch() -> None:
                 await asyncio.to_thread(
@@ -215,7 +215,7 @@ def test_patch_publishes_draft_approved_event(
             return envelope.topic
 
     topic = asyncio.run(_expect_approved())
-    assert topic == "agent.clu.draft.approved"
+    assert topic == "agent.agent.draft.approved"
 
 
 def test_patch_requires_approve_scope(
@@ -296,7 +296,7 @@ def test_patch_cannot_edit_body_after_sent(
     sent = client.post(
         "/v1/imessage/sent",
         json={
-            "agent": "clu",
+            "agent": "agent",
             "message_id": approved["dispatch_message_id"],
             "to": approved["to_handle"],
             "body": approved["body"],
@@ -331,7 +331,7 @@ def test_send_success_correlates_back_to_draft(
     sent = client.post(
         "/v1/imessage/sent",
         json={
-            "agent": "clu",
+            "agent": "agent",
             "message_id": approved["dispatch_message_id"],
             "to": approved["to_handle"],
             "body": approved["body"],
@@ -361,7 +361,7 @@ def test_send_failure_marks_draft_send_failed_and_retry_works(
     fail = client.post(
         "/v1/imessage/sent",
         json={
-            "agent": "clu",
+            "agent": "agent",
             "message_id": approved["dispatch_message_id"],
             "to": approved["to_handle"],
             "body": approved["body"],
@@ -396,7 +396,7 @@ def test_send_unknown_message_id_does_not_break_route(
     resp = client.post(
         "/v1/imessage/sent",
         json={
-            "agent": "clu",
+            "agent": "agent",
             "message_id": "00000000-0000-0000-0000-000000000000",
             "to": "+39",
             "body": "x",
@@ -417,7 +417,7 @@ def test_agent_db_unavailable_returns_502(
     client.app.state.agent_conn = None
     resp = client.post(
         "/v1/agent/drafts",
-        json={"agent": "clu", "to_handle": "+39", "body": "x"},
+        json={"agent": "agent", "to_handle": "+39", "body": "x"},
         headers=WRITE,
     )
     assert resp.status_code == 502

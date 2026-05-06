@@ -1,35 +1,44 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  LaunchAgent for the bundled OpenClawRelay.app.
+  LaunchAgent for OpenClawRelay.app, registered via SMAppService.
 
-  This file is bundled INSIDE the .app at
-  Contents/Library/LaunchAgents/com.giuseppelopesme.openclaw.relay.clu.plist
-  and is copied into ~/Library/LaunchAgents/ by setup-clu-account.sh
-  during install.
+  Lives INSIDE the .app at
+  Contents/Library/LaunchAgents/me.lopes.openclaw.relay.plist
+  and is consumed by SMAppService.agent(plistName:) at register time.
+  No copy ever lands in ~/Library/LaunchAgents/ — the modern API
+  keeps the plist in-bundle so macOS Sequoia's Login Items / Background
+  Items panel groups the agent under the bundle's CFBundleDisplayName
+  ("OpenClaw Relay") rather than the developer cert team name.
 
-  The placeholders __APP_PATH__ and __LOG_DIR__ are substituted by the
-  install step, not the build step — the .app's location depends on the
-  install target (/Applications vs ~/Applications), and the log dir
-  depends on the running user.
+  Account-agnostic: this template carries no per-account substitution.
+  AGENT_NAME (the brain identifier — currently always "clu", the only
+  shipped brain) is hard-set below; the keychain actor key is
+  resolved at runtime from getpass.getuser() inside relay.launcher,
+  so the same signed bundle works for any macOS user account that
+  registers it.
 
-  Why launchd, not SMAppService: SMAppService.register() is a Swift API.
-  Calling it from Python without PyObjC requires shipping a separate
-  Swift launcher binary, which is a larger surface for v1. A LaunchAgent
-  pointing at the .app's signed Contents/MacOS/OpenClawRelay binary
-  achieves the same goal — the binary's Designated Requirement is what
-  anchors the Automation: Messages.app grant, which is the actual
-  reason this whole .app exists.
+  Why BundleProgram (and not ProgramArguments): the modern SMAppService
+  contract requires a path RELATIVE to the .app's Contents/ directory.
+  Same pattern as Bridge.app's LaunchAgent — see that file's header.
+
+  Why no StandardOutPath / StandardErrorPath: launchd does not perform
+  ~ or $HOME expansion. The relay launcher (relay.launcher) redirects
+  its own stdout/stderr to ~/.openclaw/relay.<account>.{out,err}.log
+  on startup, so logs land in the right per-user place.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.giuseppelopesme.openclaw.relay.clu</string>
+    <string>me.lopes.openclaw.relay</string>
 
-    <key>ProgramArguments</key>
+    <key>BundleProgram</key>
+    <string>Contents/MacOS/OpenClawRelay</string>
+
+    <key>AssociatedBundleIdentifiers</key>
     <array>
-        <string>__APP_PATH__/Contents/MacOS/OpenClawRelay</string>
+        <string>me.lopes.openclaw.relay</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -38,22 +47,28 @@
     <key>KeepAlive</key>
     <true/>
 
-    <key>StandardOutPath</key>
-    <string>__LOG_DIR__/relay.clu.out.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>__LOG_DIR__/relay.clu.err.log</string>
+    <!-- 60-second throttle keeps launchd from busy-restarting the relay
+         if it crashes immediately. The relay is resilient to bridge
+         downtime via its own reconnect loop, so a slow restart is
+         the right call. -->
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 
-        <key>AGENT_NAME</key>
-        <string>clu</string>
-
         <key>BRIDGE_URL</key>
         <string>http://127.0.0.1:8788</string>
+
+        <!-- AGENT_NAME = brain identifier (which AI persona this relay
+             routes to). Hardcoded to "agent" — the brain package's
+             default identifier. Operators with multiple brains can
+             override this in their own deployment. NOT a macOS
+             account name. -->
+        <key>AGENT_NAME</key>
+        <string>agent</string>
     </dict>
 </dict>
 </plist>

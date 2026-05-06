@@ -10,10 +10,10 @@ from bridge import keychain
 
 
 def test_set_get_round_trips_scopes_and_token() -> None:
-    keychain.set_credential("brain.clu", "tok-1", ["llm:call", "vault:read"])
-    cred = keychain.get_credential("brain.clu")
+    keychain.set_credential("brain.agent", "tok-1", ["llm:call", "vault:read"])
+    cred = keychain.get_credential("brain.agent")
     assert cred is not None
-    assert cred.actor == "brain.clu"
+    assert cred.actor == "brain.agent"
     assert cred.token == "tok-1"
     assert cred.scopes == ("llm:call", "vault:read")
     assert cred.previous_token is None
@@ -27,13 +27,13 @@ def test_get_credential_returns_none_for_missing_actor() -> None:
 def test_set_credential_with_rotation_round_trip() -> None:
     expires = datetime.now(UTC) + timedelta(hours=24)
     keychain.set_credential(
-        "brain.clu",
+        "brain.agent",
         "tok-2",
         ["admin"],
         previous_token="tok-1",
         previous_expires_at=expires,
     )
-    cred = keychain.get_credential("brain.clu")
+    cred = keychain.get_credential("brain.agent")
     assert cred is not None
     assert cred.token == "tok-2"
     assert cred.previous_token == "tok-1"
@@ -44,20 +44,20 @@ def test_set_credential_with_rotation_round_trip() -> None:
 def test_previous_is_active_window() -> None:
     now = datetime.now(UTC)
     fresh = keychain.Credential(
-        actor="brain.clu",
+        actor="brain.agent",
         token="t",
         scopes=("admin",),
         previous_token="old",
         previous_expires_at=now + timedelta(minutes=1),
     )
     expired = keychain.Credential(
-        actor="brain.clu",
+        actor="brain.agent",
         token="t",
         scopes=("admin",),
         previous_token="old",
         previous_expires_at=now - timedelta(minutes=1),
     )
-    no_prev = keychain.Credential(actor="brain.clu", token="t", scopes=("admin",))
+    no_prev = keychain.Credential(actor="brain.agent", token="t", scopes=("admin",))
     assert fresh.previous_is_active(now) is True
     assert expired.previous_is_active(now) is False
     assert no_prev.previous_is_active(now) is False

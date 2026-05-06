@@ -11,7 +11,7 @@ write::
     from brains_shared.events import publish_event
     await publish_event(
         client,
-        topic="agent.clu.draft.pending",
+        topic=f"agent.{agent_name}.draft.pending",
         payload={"draft_id": "...", "channel": "imessage", "preview": "..."},
     )
 """

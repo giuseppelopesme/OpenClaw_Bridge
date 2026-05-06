@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>OpenClawBridge</string>
+
+    <!-- Surfaced by macOS in every TCC prompt the bridge triggers
+         (Calendar, Contacts, Reminders, Apple Events for Notes, etc.).
+         The user requirement is: every approval reads "MacOS Bridge for
+         OpenClaw". This is that string. -->
+    <key>CFBundleDisplayName</key>
+    <string>MacOS Bridge for OpenClaw</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>me.lopes.openclaw.bridge</string>
+
+    <key>CFBundleExecutable</key>
+    <string>OpenClawBridge</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleVersion</key>
+    <string>__VERSION__</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION__</string>
+
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <!-- Background app: no Dock icon, no menu bar entry. The bridge is
+         a daemon-shaped service with no UI; the multi-mode supervisor
+         binary runs headless under launchd. LSUIElement keeps it out of
+         the user's view while still letting macOS attribute TCC grants
+         to the bundle's signed identity. -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+
+    <!-- TCC purpose strings. Each appears verbatim in the macOS prompt
+         the first time the bridge calls into the corresponding API.
+         The header on every prompt reads "MacOS Bridge for OpenClaw"
+         (CFBundleDisplayName above) followed by the body string. -->
+
+    <key>NSCalendarsUsageDescription</key>
+    <string>MacOS Bridge for OpenClaw reads your calendar so the agent can answer questions about upcoming events.</string>
+
+    <key>NSContactsUsageDescription</key>
+    <string>MacOS Bridge for OpenClaw reads your contacts to give the agent context about people you exchange iMessages with.</string>
+
+    <key>NSRemindersUsageDescription</key>
+    <string>MacOS Bridge for OpenClaw reads and creates reminders so the agent can manage tasks you delegate to it.</string>
+
+    <!-- AppleEvents covers AppleScript automation of Notes.app and any
+         other Apple app the bridge orchestrates (Mail, Music, etc.).
+         The first prompt the user sees lists the specific target app. -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>MacOS Bridge for OpenClaw uses AppleScript to read and create notes on your behalf.</string>
+
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright (c) 2026 Giuseppe Lopes. All rights reserved.</string>
+</dict>
+</plist>

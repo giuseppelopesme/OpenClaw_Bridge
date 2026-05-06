@@ -1,16 +1,20 @@
 """iMessage SDK helper — `send` for direct outbound messages.
 
-Most outbound iMessages now flow through the bridge's draft-approval
-pipeline (P1a): the draft is approved via PATCH /v1/agent/drafts/{id},
-the bridge enqueues to the relay's outbox itself, no direct caller.
+Most outbound iMessages flow through the bridge's draft-approval
+pipeline: the draft is approved via PATCH /v1/agent/drafts/{id}, the
+bridge enqueues to the relay's outbox itself, no direct caller.
 
 This helper exists for callers that need a *direct* send without the
 human-approval loop — e.g. a future scheduled-reminders dispatcher, or
-an admin tool. CLU itself does not use this in v1; CLU only creates
+an admin tool. The default brain does not use this; it only creates
 drafts via ``brains_shared.agent.create_draft``.
 
-If you find yourself reaching for this in CLU, stop — that's an
-end-run around the approval gate.
+If you find yourself reaching for this in a brain handler, stop —
+that's an end-run around the approval gate.
+
+Sender identity: any well-formed agent identifier (``[a-z][a-z0-9_]*``,
+1–32 chars), or the special string ``"main"`` to send as the operator.
+The bridge enforces the same regex.
 """
 
 from __future__ import annotations
@@ -21,23 +25,13 @@ from typing import Literal
 
 from brains_shared._generated.api.imessage import imessage_send_v1_imessage_send_post
 from brains_shared._generated.models.i_message_send_request import IMessageSendRequest
-from brains_shared._generated.models.i_message_send_request_from import (
-    IMessageSendRequestFrom,
-)
 from brains_shared._generated.models.i_message_send_request_service import (
     IMessageSendRequestService,
 )
 from brains_shared.client import BridgeClient, idempotency_key
 
-SenderName = Literal["clu", "tron", "flynn", "main"]
 ServiceKind = Literal["iMessage", "SMS"]
 
-_SENDER_MAP: dict[str, IMessageSendRequestFrom] = {
-    "clu": IMessageSendRequestFrom.CLU,
-    "tron": IMessageSendRequestFrom.TRON,
-    "flynn": IMessageSendRequestFrom.FLYNN,
-    "main": IMessageSendRequestFrom.MAIN,
-}
 _SERVICE_MAP: dict[str, IMessageSendRequestService] = {
     "iMessage": IMessageSendRequestService.IMESSAGE,
     "SMS": IMessageSendRequestService.SMS,
@@ -77,15 +71,15 @@ class SendError(RuntimeError):
 async def send(
     client: BridgeClient,
     *,
-    sender: SenderName,
+    sender: str,
     to: str,
     body: str,
     service: ServiceKind = "iMessage",
     idempotency_key_value: str | None = None,
 ) -> SendResult:
-    """Direct outbound iMessage. See module docstring for v1 usage notes."""
+    """Direct outbound iMessage. See module docstring for usage notes."""
     request_body = IMessageSendRequest(
-        from_=_SENDER_MAP[sender],
+        from_=sender,
         to=to,
         body=body,
         service=_SERVICE_MAP[service],

@@ -54,8 +54,16 @@ logger = logging.getLogger("bridge.routes.imessage")
 
 router = APIRouter(tags=["imessage"])
 
-AgentName = Literal["clu", "tron", "flynn"]
-SenderName = Literal["clu", "tron", "flynn", "main"]
+# Agent identity — well-formed lowercase identifier (1–32 chars, leading
+# letter, alphanumerics/underscore). The bridge accepts any name; the
+# operator's deployment chooses one and threads it through topic names,
+# Keychain actor keys, and the brain's runtime config.
+_AGENT_NAME_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
+# `main` is the special sender meaning "the operator themselves"; any
+# other sender must look like a valid agent name.
+_SENDER_NAME_PATTERN = r"^(main|[a-z][a-z0-9_]{0,31})$"
+AgentName = Annotated[str, Field(pattern=_AGENT_NAME_PATTERN)]
+SenderName = Annotated[str, Field(pattern=_SENDER_NAME_PATTERN)]
 ServiceKind = Literal["iMessage", "SMS"]
 SendStatus = Literal["success", "failed"]
 
@@ -73,7 +81,11 @@ def _queue_key(agent: str) -> str:
 
 
 class IMessageSendRequest(BaseModel):
-    sender: SenderName = Field(alias="from", serialization_alias="from")
+    sender: str = Field(
+        alias="from",
+        serialization_alias="from",
+        pattern=_SENDER_NAME_PATTERN,
+    )
     to: str = Field(min_length=1)
     body: str = Field(min_length=1)
     service: ServiceKind = "iMessage"

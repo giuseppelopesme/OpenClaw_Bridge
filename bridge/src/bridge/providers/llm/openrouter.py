@@ -1,7 +1,7 @@
 """OpenRouter LLM provider — wraps `https://openrouter.ai/api/v1`.
 
 The API key lives in macOS Keychain under service
-`com.giuseppelopesme.openclaw.bridge`, account `provider.openrouter`. We
+`me.lopes.openclaw.bridge`, account `provider.openrouter`. We
 reuse `keychain.set_credential`'s schema dual-purpose: the API key goes in
 the `token` field, `scopes` is the empty list, rotation fields are
 unused. Documented in `bridge.keychain` so future readers see why a

@@ -60,7 +60,7 @@ class FakeCursor:
 def _config(tmp_path: Path) -> RelayConfig:
     return RelayConfig(
         bridge_url="http://x",
-        agent_name="clu",
+        agent_name="agent",
         relay_token="t",
         chatdb_path=tmp_path / "chat.db",
         state_path=tmp_path / "state",
@@ -101,7 +101,7 @@ def test_inbound_loop_forwards_messages_then_stops(tmp_path: Path) -> None:
         relay_main.run_inbound_loop(cfg, cursor, bridge, stop)  # type: ignore[arg-type]
     assert len(bridge.posted_inbound) == 1
     assert bridge.posted_inbound[0]["body"] == "hi"
-    assert bridge.posted_inbound[0]["agent"] == "clu"
+    assert bridge.posted_inbound[0]["agent"] == "agent"
 
 
 def test_inbound_loop_keeps_running_when_post_raises(tmp_path: Path) -> None:
@@ -167,7 +167,7 @@ def test_outbound_dispatches_job_and_reports_success(tmp_path: Path) -> None:
                 "to": "+39",
                 "body": "hi",
                 "service": "iMessage",
-                "from": "clu",
+                "from": "agent",
             },
         ],
     )
@@ -206,7 +206,7 @@ def test_outbound_reports_failure_when_osascript_fails(tmp_path: Path) -> None:
                 "to": "+39",
                 "body": "hi",
                 "service": "iMessage",
-                "from": "clu",
+                "from": "agent",
             },
         ],
     )

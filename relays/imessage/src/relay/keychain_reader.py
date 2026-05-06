@@ -3,7 +3,7 @@
 The .app bundle has no shell wrapper to plumb ``RELAY_TOKEN`` from the
 keychain into the env (Session 7's ``scripts/run-relay.sh`` did that). So
 the relay reads the token itself, on startup, via the macOS ``security``
-binary — same generic-password slot ``setup-clu-account.sh`` writes.
+binary — same generic-password slot ``setup-relay-account.sh`` writes.
 
 We deliberately avoid the ``keyring`` Python library to keep PyInstaller's
 dependency closure tight and to mirror the rest of the project's
@@ -20,7 +20,7 @@ from typing import Final
 logger = logging.getLogger("relay.keychain")
 
 _SECURITY_BIN: Final[str] = "/usr/bin/security"
-_KEYCHAIN_SERVICE: Final[str] = "com.giuseppelopesme.openclaw.bridge"
+_KEYCHAIN_SERVICE: Final[str] = "me.lopes.openclaw.bridge"
 _DEFAULT_TIMEOUT_S: Final[float] = 5.0
 
 
@@ -31,7 +31,7 @@ class KeychainReadError(Exception):
 def read_relay_token(actor: str, *, timeout_s: float = _DEFAULT_TIMEOUT_S) -> str:
     """Return the plaintext relay token stored under ``actor``.
 
-    The slot is created by ``scripts/setup-clu-account.sh`` (or by the
+    The slot is created by ``scripts/setup-relay-account.sh`` (or by the
     operator running ``security add-generic-password`` directly). The
     payload is a JSON envelope ``{"token": "...", "scopes": [...]}`` —
     we extract the ``token`` field. Raises ``KeychainReadError`` on any

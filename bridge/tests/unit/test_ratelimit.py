@@ -61,7 +61,7 @@ def test_rate_limited_endpoint_returns_429_with_retry_after(client) -> None:  # 
     The default test fixture wires the limiter against fakeredis, so this
     exercises the Redis-backed path end-to-end (Lua script + key expiry).
     """
-    headers = {"Authorization": "Bearer dev-token-clu"}
+    headers = {"Authorization": "Bearer dev-token-agent"}
     spec = spec_for("vault:write")
     # Fire burst+1 unique paths to defeat any conflict on the same name.
     for i in range(spec.burst):
@@ -131,11 +131,11 @@ def test_redis_limiter_writes_expected_keys() -> None:
         client = fakeredis.aioredis.FakeRedis(decode_responses=False)
         try:
             rl = RateLimiter(client)
-            await rl.check_async("brain.clu", "vault:write")
-            assert await client.exists(b"bucket:brain.clu:vault:write") == 1
-            ttl = await client.ttl(b"bucket:brain.clu:vault:write")
+            await rl.check_async("brain.agent", "vault:write")
+            assert await client.exists(b"bucket:brain.agent:vault:write") == 1
+            ttl = await client.ttl(b"bucket:brain.agent:vault:write")
             assert ttl > 0  # EXPIRE was set
-            fields = await client.hkeys(b"bucket:brain.clu:vault:write")
+            fields = await client.hkeys(b"bucket:brain.agent:vault:write")
             field_set = {f.decode() if isinstance(f, bytes) else f for f in fields}
             assert "tokens" in field_set
             assert "last_refill_ms" in field_set

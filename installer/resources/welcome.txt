@@ -1,0 +1,55 @@
+MacOS Bridge for OpenClaw
+
+This installer sets up two background services that let an AI agent
+read and reply to your iMessages on this Mac.
+
+
+WHAT GETS INSTALLED
+
+  • OpenClawBridge.app — the brain. Runs as you and talks to iCloud
+    (Calendar, Contacts, Reminders, Messages).
+
+  • OpenClawRelay.app — the iMessage worker. Runs as a separate macOS
+    user account that you select on the next screen, so the agent's
+    Messages history stays isolated from yours.
+
+
+WHAT THE INSTALLER WILL ASK YOU FOR
+
+  1. Your admin password — once, at the very start, in Apple's
+     standard installer dialog. Required to copy the apps into
+     /Applications.
+
+  2. The service user's login password — once, in an OpenClaw-branded
+     dialog that names the user account by its full name. Required so
+     the installer can plant the relay's auth token directly into that
+     user's Keychain without firing any generic system prompts.
+
+  If you re-run the installer with no changes, neither prompt fires —
+  the installer detects the existing token and skips the Keychain
+  write entirely.
+
+
+WHAT YOU'LL BE ASKED AFTER INSTALL
+
+  When the agent first uses Calendar, Contacts, Reminders or Messages,
+  macOS will pop up Privacy & Security prompts. These are one-time
+  per service. Click OK to grant access — the prompts identify the
+  requester as "MacOS Bridge for OpenClaw".
+
+  Full Disk Access (for the relay to read the service user's
+  ~/Library/Messages/chat.db) must be granted manually in System
+  Settings → Privacy & Security → Full Disk Access. This requires
+  your admin password to unlock the panel.
+
+
+WHAT THIS INSTALLER DOES NOT DO
+
+  • Create new macOS user accounts. The service user must already
+    exist (set it up in System Settings → Users & Groups first).
+
+  • Store any password on disk. Tokens go straight to the Keychain;
+    passwords are used once and discarded.
+
+  • Send anything off this Mac during install. Network calls only
+    happen later, when the agent is running.

@@ -6,7 +6,6 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..models.i_message_send_request_from import IMessageSendRequestFrom
 from ..models.i_message_send_request_service import IMessageSendRequestService
 from ..types import UNSET, Unset
 
@@ -18,13 +17,13 @@ class IMessageSendRequest:
     """
     Attributes:
         body (str):
-        from_ (IMessageSendRequestFrom):
+        from_ (str):
         to (str):
         service (IMessageSendRequestService | Unset):  Default: IMessageSendRequestService.IMESSAGE.
     """
 
     body: str
-    from_: IMessageSendRequestFrom
+    from_: str
     to: str
     service: IMessageSendRequestService | Unset = IMessageSendRequestService.IMESSAGE
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -32,7 +31,7 @@ class IMessageSendRequest:
     def to_dict(self) -> dict[str, Any]:
         body = self.body
 
-        from_ = self.from_.value
+        from_ = self.from_
 
         to = self.to
 
@@ -59,7 +58,7 @@ class IMessageSendRequest:
         d = dict(src_dict)
         body = d.pop("body")
 
-        from_ = IMessageSendRequestFrom(d.pop("from"))
+        from_ = d.pop("from")
 
         to = d.pop("to")
 

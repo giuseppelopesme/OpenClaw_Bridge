@@ -6,7 +6,6 @@ from typing import Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..models.draft_create_request_agent import DraftCreateRequestAgent
 from ..models.draft_create_request_channel import DraftCreateRequestChannel
 from ..types import UNSET, Unset
 
@@ -17,7 +16,7 @@ T = TypeVar("T", bound="DraftCreateRequest")
 class DraftCreateRequest:
     """
     Attributes:
-        agent (DraftCreateRequestAgent):
+        agent (str):
         body (str):
         to_handle (str):
         channel (DraftCreateRequestChannel | Unset):  Default: DraftCreateRequestChannel.IMESSAGE.
@@ -25,7 +24,7 @@ class DraftCreateRequest:
         preview (None | str | Unset):
     """
 
-    agent: DraftCreateRequestAgent
+    agent: str
     body: str
     to_handle: str
     channel: DraftCreateRequestChannel | Unset = DraftCreateRequestChannel.IMESSAGE
@@ -34,7 +33,7 @@ class DraftCreateRequest:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        agent = self.agent.value
+        agent = self.agent
 
         body = self.body
 
@@ -77,7 +76,7 @@ class DraftCreateRequest:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        agent = DraftCreateRequestAgent(d.pop("agent"))
+        agent = d.pop("agent")
 
         body = d.pop("body")
 

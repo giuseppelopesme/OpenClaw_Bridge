@@ -1,17 +1,19 @@
 # OpenClaw
 
-Personal AI agent ecosystem. One bridge, three brains (CLU, TRON, FLYNN), three iMessage relays. Single Mac Mini M4 host.
+Personal-AI bridge for macOS. One bridge, one configurable brain, one
+iMessage relay. Single Mac Mini host.
 
-The bridge is the only component that talks to Apple, IMAP/SMTP, Redis, LLM providers, and the Obsidian vault. Everything else goes through it over loopback HTTP.
+The bridge is the only component that talks to Apple, IMAP/SMTP,
+Redis, LLM providers, and the Obsidian vault. Everything else goes
+through it over loopback HTTP.
 
 ## Layout
 
 ```
-bridge/              FastAPI app on 127.0.0.1:8788, runs as giuseppelopes
-relays/imessage/     thin per-user processes (clu, tron, flynn)
-brains/shared/       typed SDK consumed by every brain
-brains/clu|tron|flynn/  agent processes
-ops/                 launchd plists, redis config, install script
+bridge/              FastAPI app on 127.0.0.1:8788, runs as the operator
+relays/imessage/     thin per-account process (account-agnostic)
+brains/shared/       typed SDK consumed by the brain
+brains/agent/        the brain process (default agent identity)
 docs/                spec docs mirrored from the Obsidian vault
 tools/               admin CLI
 ```
@@ -27,11 +29,15 @@ The spec docs are the source of truth for what the bridge must do:
 - [docs/repo-layout.md](docs/repo-layout.md) — package boundaries
 - [docs/telemetry-plan.md](docs/telemetry-plan.md) — what we instrument and why
 
-These are mirrors of the human-authored copies in the Obsidian vault under `01 - Projects/OpenClaw/Bridge/`. Update both together.
+These are mirrors of the human-authored copies in the Obsidian vault
+under `01 - Projects/OpenClaw/Bridge/`. Update both together.
 
 ## Tech
 
-Python 3.13, `uv` workspace, FastAPI, redis-py async, aiosqlite, pytest + pytest-asyncio, ruff, mypy --strict on `bridge/` and `brains/shared/`. See [CLAUDE.md](CLAUDE.md) for the full convention list.
+Python 3.13, `uv` workspace, FastAPI, redis-py async, sqlite3,
+pytest + pytest-asyncio, ruff, mypy --strict on `bridge/` and
+`brains/shared/`. See [CLAUDE.md](CLAUDE.md) for the full convention
+list.
 
 ## Local dev
 
@@ -51,22 +57,13 @@ uv run --no-sync mypy
 bash scripts/check-boundaries.sh
 ```
 
-`--no-sync` is a workaround for a uv 0.11.x + Python 3.13 quirk on macOS;
-see `SESSION-NOTES.md`.
+`--no-sync` is a workaround for a uv 0.11.x + Python 3.13 quirk on macOS.
 
-## Build order
+## Production install
 
-1. Repo scaffold + bridge skeleton (this step) — FastAPI app, auth middleware, error envelope, `/v1/health`
-2. Vault provider + `vault:read` / `vault:write`
-3. LLM router + OpenRouter + `/v1/llm/complete` with telemetry
-4. Redis event bus + `events:publish` / `events:subscribe`
-5. Apple provider + endpoints
-6. IMAP/SMTP + email endpoints
-7. iMessage relay (CLU) + send/inbound endpoints
-8. Brain SDK from the OpenAPI spec
-9. CLU brain end-to-end
-10. TRON, then FLYNN
-
-## Status
-
-2026-04-29 — Step 1 in progress.
+The signed + notarized `MacOSBridgeForOpenClaw.pkg` is the canonical
+install path. It drops both `OpenClawBridge.app` and
+`OpenClawRelay.app` into `/Applications/`, picks the iMessage relay's
+service-user account via an osascript dialog, and registers both
+LaunchAgents via `SMAppService.agent(plistName:)` in the right
+per-user Aqua sessions. See `installer/README.md`.

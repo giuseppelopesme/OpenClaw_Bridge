@@ -32,7 +32,7 @@ def test_post_inbound_happy_path() -> None:
 
     with _client_with(_h) as bc:
         out = bc.post_inbound(
-            agent="clu",
+            agent="agent",
             sender="+39",
             body="hi",
             received_at="2026-05-02T10:00:00+00:00",
@@ -52,7 +52,7 @@ def test_get_outbox_happy_path_returns_job() -> None:
         )
 
     with _client_with(_h) as bc:
-        job = bc.get_outbox(agent="clu", timeout_s=1)
+        job = bc.get_outbox(agent="agent", timeout_s=1)
     assert job is not None
     assert job["message_id"] == "abc"
 
@@ -62,7 +62,7 @@ def test_get_outbox_returns_none_on_204() -> None:
         return httpx.Response(204)
 
     with _client_with(_h) as bc:
-        job = bc.get_outbox(agent="clu", timeout_s=1)
+        job = bc.get_outbox(agent="agent", timeout_s=1)
     assert job is None
 
 
@@ -75,7 +75,7 @@ def test_post_sent_includes_status_and_optional_fields() -> None:
 
     with _client_with(_h) as bc:
         bc.post_sent(
-            agent="clu",
+            agent="agent",
             message_id="m1",
             to="+39",
             body="hi",
@@ -99,7 +99,7 @@ def test_4xx_does_not_retry() -> None:
 
     with _client_with(_h) as bc, pytest.raises(BridgeClientError) as excinfo:
         bc.post_inbound(
-            agent="clu",
+            agent="agent",
             sender="+39",
             body="x",
             received_at="2026-05-02T10:00:00+00:00",
@@ -119,7 +119,7 @@ def test_5xx_retries_then_raises() -> None:
 
     with _client_with(_h) as bc, pytest.raises(BridgeClientError) as excinfo:
         bc.post_inbound(
-            agent="clu",
+            agent="agent",
             sender="+39",
             body="x",
             received_at="2026-05-02T10:00:00+00:00",
@@ -140,7 +140,7 @@ def test_5xx_then_success_returns_payload() -> None:
 
     with _client_with(_h) as bc:
         out = bc.post_inbound(
-            agent="clu",
+            agent="agent",
             sender="+39",
             body="x",
             received_at="2026-05-02T10:00:00+00:00",

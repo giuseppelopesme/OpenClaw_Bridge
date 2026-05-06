@@ -7,9 +7,6 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.draft_list_response import DraftListResponse
 from ...models.http_validation_error import HTTPValidationError
-from ...models.list_drafts_v1_agent_drafts_get_agent_type_0 import (
-    ListDraftsV1AgentDraftsGetAgentType0,
-)
 from ...models.list_drafts_v1_agent_drafts_get_status_type_0 import (
     ListDraftsV1AgentDraftsGetStatusType0,
 )
@@ -18,7 +15,7 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    agent: ListDraftsV1AgentDraftsGetAgentType0 | None | Unset = UNSET,
+    agent: None | str | Unset = UNSET,
     status: ListDraftsV1AgentDraftsGetStatusType0 | None | Unset = UNSET,
     limit: int | Unset = 50,
 ) -> dict[str, Any]:
@@ -28,8 +25,6 @@ def _get_kwargs(
     json_agent: None | str | Unset
     if isinstance(agent, Unset):
         json_agent = UNSET
-    elif isinstance(agent, ListDraftsV1AgentDraftsGetAgentType0):
-        json_agent = agent.value
     else:
         json_agent = agent
     params["agent"] = json_agent
@@ -88,14 +83,14 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    agent: ListDraftsV1AgentDraftsGetAgentType0 | None | Unset = UNSET,
+    agent: None | str | Unset = UNSET,
     status: ListDraftsV1AgentDraftsGetStatusType0 | None | Unset = UNSET,
     limit: int | Unset = 50,
 ) -> Response[DraftListResponse | HTTPValidationError]:
     """List Drafts
 
     Args:
-        agent (ListDraftsV1AgentDraftsGetAgentType0 | None | Unset):
+        agent (None | str | Unset):
         status (ListDraftsV1AgentDraftsGetStatusType0 | None | Unset):
         limit (int | Unset):  Default: 50.
 
@@ -123,14 +118,14 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    agent: ListDraftsV1AgentDraftsGetAgentType0 | None | Unset = UNSET,
+    agent: None | str | Unset = UNSET,
     status: ListDraftsV1AgentDraftsGetStatusType0 | None | Unset = UNSET,
     limit: int | Unset = 50,
 ) -> DraftListResponse | HTTPValidationError | None:
     """List Drafts
 
     Args:
-        agent (ListDraftsV1AgentDraftsGetAgentType0 | None | Unset):
+        agent (None | str | Unset):
         status (ListDraftsV1AgentDraftsGetStatusType0 | None | Unset):
         limit (int | Unset):  Default: 50.
 
@@ -153,14 +148,14 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    agent: ListDraftsV1AgentDraftsGetAgentType0 | None | Unset = UNSET,
+    agent: None | str | Unset = UNSET,
     status: ListDraftsV1AgentDraftsGetStatusType0 | None | Unset = UNSET,
     limit: int | Unset = 50,
 ) -> Response[DraftListResponse | HTTPValidationError]:
     """List Drafts
 
     Args:
-        agent (ListDraftsV1AgentDraftsGetAgentType0 | None | Unset):
+        agent (None | str | Unset):
         status (ListDraftsV1AgentDraftsGetStatusType0 | None | Unset):
         limit (int | Unset):  Default: 50.
 
@@ -186,14 +181,14 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    agent: ListDraftsV1AgentDraftsGetAgentType0 | None | Unset = UNSET,
+    agent: None | str | Unset = UNSET,
     status: ListDraftsV1AgentDraftsGetStatusType0 | None | Unset = UNSET,
     limit: int | Unset = 50,
 ) -> DraftListResponse | HTTPValidationError | None:
     """List Drafts
 
     Args:
-        agent (ListDraftsV1AgentDraftsGetAgentType0 | None | Unset):
+        agent (None | str | Unset):
         status (ListDraftsV1AgentDraftsGetStatusType0 | None | Unset):
         limit (int | Unset):  Default: 50.
 

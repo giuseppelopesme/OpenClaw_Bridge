@@ -29,7 +29,7 @@ Pub/sub is ephemeral — no persistence in v1. Stream-based persistent events ge
 
 Hierarchical, dot-separated: `<domain>.<event>.<scope>`.
 
-Domains in v1: `imessage`, `mail`, `calendar`, `vault`, `agent`, `system`. Subscribers can pattern-match with `*` at any segment, e.g. `imessage.received.*` or `agent.tron.*`.
+Domains in v1: `imessage`, `mail`, `calendar`, `vault`, `agent`, `system`. Subscribers can pattern-match with `*` at any segment, e.g. `imessage.received.*` or `agent.{agent}.*`.
 
 ## Envelope
 
@@ -38,9 +38,9 @@ Every event is a JSON object with this envelope. Subscribers should validate `sc
 ```json
 {
   "event_id": "uuid",
-  "topic": "imessage.received.clu",
+  "topic": "imessage.received.{agent}",
   "published_at": "2026-04-29T10:00:00Z",
-  "publisher": "relay.clu",
+  "publisher": "relay.<account>",
   "schema_version": "1",
   "payload": { ... topic-specific ... }
 }
@@ -84,4 +84,4 @@ The topic catalogue described `agent.{name}.draft.pending` as brain-published. W
 
 ### `agent.{name}.draft.approved` payload + publisher
 
-Same logic: the bridge publishes `agent.{name}.draft.approved` from the PATCH handler when status flips to `approved`. Payload is `{draft_id, approved_by, approved_at}` per the catalogue. The envelope's `publisher` field carries the operator's actor (e.g. `cli.giuseppelopes`).
+Same logic: the bridge publishes `agent.{name}.draft.approved` from the PATCH handler when status flips to `approved`. Payload is `{draft_id, approved_by, approved_at}` per the catalogue. The envelope's `publisher` field carries the operator's actor (e.g. `cli.<account>`).

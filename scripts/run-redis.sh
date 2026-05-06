@@ -4,7 +4,7 @@
 # Usage:
 #     ./scripts/run-redis.sh                # foreground; Ctrl-C to stop
 #
-# The Keychain item is service `com.giuseppelopesme.openclaw.bridge`,
+# The Keychain item is service `me.lopes.openclaw.bridge`,
 # account `provider.redis`, password = JSON `{"token": "<secret>", ...}`
 # (same shape every other actor/provider uses; see bridge/keychain.py).
 #

@@ -10,7 +10,7 @@ dependencies = [
     "openclaw-bridge",
     "openclaw-relay-imessage",
     "openclaw-brains-shared",
-    "openclaw-brain-clu",
+    "openclaw-brain-agent",
 ]
 
 [tool.uv.workspace]
@@ -18,14 +18,14 @@ members = [
     "bridge",
     "relays/imessage",
     "brains/shared",
-    "brains/clu",
+    "brains/agent",
 ]
 
 [tool.uv.sources]
 openclaw-bridge = { workspace = true }
 openclaw-relay-imessage = { workspace = true }
 openclaw-brains-shared = { workspace = true }
-openclaw-brain-clu = { workspace = true }
+openclaw-brain-agent = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -134,14 +134,14 @@ pythonpath = [
     "bridge/src",
     "bridge/tests",
     "brains/shared/src",
-    "brains/clu/src",
+    "brains/agent/src",
     "relays/imessage/src",
 ]
 testpaths = [
     "bridge/tests",
     "relays/imessage/tests",
     "brains/shared/tests",
-    "brains/clu/tests",
+    "brains/agent/tests",
 ]
 addopts = [
     "-ra",

@@ -13,9 +13,9 @@ Date column conversion: chat.db uses Apple's epoch (2001-01-01 UTC =
 epoch. We convert to UTC ISO 8601 for the bridge.
 
 Full Disk Access (FDA) is required to read chat.db on modern macOS. The
-relay process (running as ``clu``) needs FDA granted via System Settings
-→ Privacy & Security → Full Disk Access. Operator pre-flight, not a code
-concern — see ``SESSION-NOTES.md``.
+relay process (running as the operator-chosen service-user account)
+needs FDA granted via System Settings → Privacy & Security → Full Disk
+Access. Operator pre-flight, not a code concern.
 
 WAL note: we open the database with ``mode=ro`` only. We do NOT use
 ``immutable=1`` even though it would skip the locking dance, because

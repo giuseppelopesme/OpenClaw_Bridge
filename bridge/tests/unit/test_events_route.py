@@ -200,17 +200,17 @@ def test_vault_write_publishes_vault_changed(
 ) -> None:
     """A successful vault write triggers a publish on `vault.changed`."""
     _ = tokens
-    # The default brain.clu fixture lacks events:subscribe — promote it.
+    # The default brain.agent fixture lacks events:subscribe — promote it.
     keychain.set_credential(
-        "brain.clu",
-        "dev-token-clu",
+        "brain.agent",
+        "dev-token-agent",
         ["llm:call", "vault:read", "vault:write", "events:subscribe"],
     )
     _refresh(client)
 
     with client.websocket_connect(
         "/v1/events/subscribe?topic=vault.*",
-        headers={"Authorization": "Bearer dev-token-clu"},
+        headers={"Authorization": "Bearer dev-token-agent"},
     ) as ws:
         write_resp = client.post(
             "/v1/vault/write",
@@ -219,7 +219,7 @@ def test_vault_write_publishes_vault_changed(
                 "mode": "create",
                 "content": "hi\n",
             },
-            headers={"Authorization": "Bearer dev-token-clu"},
+            headers={"Authorization": "Bearer dev-token-agent"},
         )
         assert write_resp.status_code == 201
 
@@ -228,7 +228,7 @@ def test_vault_write_publishes_vault_changed(
         assert env.topic == "vault.changed"
         assert env.payload["path"] == "Inbox/event-test.md"
         assert env.payload["op"] == "create"
-        assert env.publisher == "brain.clu"
+        assert env.publisher == "brain.agent"
 
 
 def test_events_publish_redis_unavailable_returns_502(
@@ -265,7 +265,7 @@ def test_event_envelope_payload_roundtrips_complex_types(
     ) as ws:
         resp = client.post(
             "/v1/events/publish",
-            json={"topic": "agent.tron.draft.pending", "payload": payload},
+            json={"topic": "agent.agent.draft.pending", "payload": payload},
             headers=PUBLISHER_HEADERS,
         )
         assert resp.status_code == 202

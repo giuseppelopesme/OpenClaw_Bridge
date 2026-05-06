@@ -6,8 +6,6 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..models.i_message_inbound_request_agent import IMessageInboundRequestAgent
-
 T = TypeVar("T", bound="IMessageInboundRequest")
 
 
@@ -15,14 +13,14 @@ T = TypeVar("T", bound="IMessageInboundRequest")
 class IMessageInboundRequest:
     """
     Attributes:
-        agent (IMessageInboundRequestAgent):
+        agent (str):
         body (str):
         chat_guid (str):
         from_ (str):
         received_at (str):
     """
 
-    agent: IMessageInboundRequestAgent
+    agent: str
     body: str
     chat_guid: str
     from_: str
@@ -30,7 +28,7 @@ class IMessageInboundRequest:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        agent = self.agent.value
+        agent = self.agent
 
         body = self.body
 
@@ -57,7 +55,7 @@ class IMessageInboundRequest:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        agent = IMessageInboundRequestAgent(d.pop("agent"))
+        agent = d.pop("agent")
 
         body = d.pop("body")
 

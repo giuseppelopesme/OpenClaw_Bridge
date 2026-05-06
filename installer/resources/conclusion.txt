@@ -1,0 +1,43 @@
+Installation complete
+
+The bridge is running as you and the relay is running as the service
+user account you selected. macOS will now ask for permissions on
+demand.
+
+
+ONE-TIME SETUP REMAINING
+
+  1. Grant Full Disk Access to the relay
+     Open System Settings → Privacy & Security → Full Disk Access.
+     Toggle OpenClawRelay on (you'll need your admin password to
+     unlock the panel). This lets the relay read the service user's
+     ~/Library/Messages/chat.db.
+
+  2. Sign in to iCloud as the service user
+     Switch to the service user account, sign in to iCloud, and
+     enable Messages. Send yourself a test iMessage from your phone —
+     the relay should pick it up within ~2 seconds.
+
+  3. Approve Privacy & Security prompts when they appear
+     The first time the agent reads Contacts, Reminders, or Calendar,
+     macOS will prompt. The dialog names "MacOS Bridge for OpenClaw"
+     as the requester — click OK.
+
+
+HOW TO VERIFY IT WORKS
+
+  • Bridge health:  curl http://127.0.0.1:8788/v1/health
+  • Bridge logs:    ~/.openclaw/logs/bridge.log
+  • Relay logs:     in the service user's home,
+                    ~/.openclaw/logs/relay.log
+
+
+TO UNINSTALL
+
+  Run  sudo bash installer/uninstall.sh  from the OpenClaw source
+  tree. It removes both apps, both LaunchAgents, the per-user state
+  directories, and the package receipts — but leaves your Keychain
+  tokens in place (useful if you reinstall).
+
+
+Questions or issues? See docs/repo-layout.md in the source tree.

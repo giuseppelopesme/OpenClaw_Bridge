@@ -7,7 +7,7 @@ also bump the bridge's in-memory map immediately if it shares this process
 (useful for tests, not for prod where the bridge runs separately).
 
 Usage:
-    scripts/mint-token.py --actor brain.clu --scopes llm:call,vault:read
+    scripts/mint-token.py --actor brain.agent --scopes llm:call,vault:read
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from bridge import keychain  # noqa: E402
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Mint a bridge token for an actor.")
-    p.add_argument("--actor", required=True, help="actor id (e.g. relay.clu, brain.clu)")
+    p.add_argument("--actor", required=True, help="actor id (e.g. relay.account, brain.agent)")
     p.add_argument(
         "--scopes",
         required=True,

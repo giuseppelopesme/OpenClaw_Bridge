@@ -13,7 +13,7 @@ repo_root="$(pwd)"
 src_dirs=(
     "$repo_root/bridge/src"
     "$repo_root/brains/shared/src"
-    "$repo_root/brains/clu/src"
+    "$repo_root/brains/agent/src"
     "$repo_root/relays/imessage/src"
 )
 

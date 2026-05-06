@@ -81,7 +81,7 @@ def _insert_message(
 
 def test_poll_yields_inbound_messages(tmp_path: Path) -> None:
     db = tmp_path / "chat.db"
-    state = tmp_path / "relay.clu.state"
+    state = tmp_path / "relay.account.state"
     conn = _build_chatdb(db)
     _insert_message(
         conn,
@@ -112,7 +112,7 @@ def test_poll_yields_inbound_messages(tmp_path: Path) -> None:
 
 def test_poll_filters_out_outbound_messages(tmp_path: Path) -> None:
     db = tmp_path / "chat.db"
-    state = tmp_path / "relay.clu.state"
+    state = tmp_path / "relay.account.state"
     conn = _build_chatdb(db)
     _insert_message(
         conn,
@@ -137,7 +137,7 @@ def test_poll_filters_out_outbound_messages(tmp_path: Path) -> None:
 
 def test_poll_skips_already_seen_via_state_file(tmp_path: Path) -> None:
     db = tmp_path / "chat.db"
-    state = tmp_path / "relay.clu.state"
+    state = tmp_path / "relay.account.state"
     conn = _build_chatdb(db)
     rowid = _insert_message(
         conn,
@@ -163,7 +163,7 @@ def test_poll_handles_missing_chatdb_gracefully(tmp_path: Path) -> None:
 def test_state_file_atomic_rewrite(tmp_path: Path) -> None:
     """write_last_seen uses a tmp+rename so a crash mid-write doesn't leave
     a half-written state file."""
-    state = tmp_path / "relay.clu.state"
+    state = tmp_path / "relay.account.state"
     cursor = ChatDBCursor(tmp_path / "chat.db", state)
     cursor.write_last_seen(123)
     assert state.read_text() == "123"

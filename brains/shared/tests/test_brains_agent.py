@@ -39,14 +39,14 @@ def _bridge_with(
 def _full_draft_dict(**overrides: object) -> dict[str, object]:
     base: dict[str, object] = {
         "draft_id": "d1",
-        "agent": "clu",
+        "agent": "agent",
         "channel": "imessage",
         "to_handle": "+39",
         "body": "hello",
         "status": "pending",
         "created_at": "2026-05-02T10:00:00+00:00",
         "last_modified_at": "2026-05-02T10:00:00+00:00",
-        "publisher": "brain.clu",
+        "publisher": "brain.agent",
         "in_reply_to_event_id": None,
         "preview": "hello",
         "approved_at": None,
@@ -74,7 +74,7 @@ async def test_create_draft_201_returns_typed() -> None:
             201,
             json={
                 "draft_id": "d-new",
-                "agent": "clu",
+                "agent": "agent",
                 "channel": "imessage",
                 "status": "pending",
                 "created_at": "2026-05-02T10:00:00+00:00",
@@ -85,7 +85,7 @@ async def test_create_draft_201_returns_typed() -> None:
     async with _bridge_with(_h) as bc:
         out = await create_draft(
             bc,
-            agent="clu",
+            agent="agent",
             to_handle="+39",
             body="hello there",
             in_reply_to_event_id="evt-x",
@@ -94,7 +94,7 @@ async def test_create_draft_201_returns_typed() -> None:
     assert out.status == "pending"
     sent = captured["body"]
     assert isinstance(sent, dict)
-    assert sent["agent"] == "clu"
+    assert sent["agent"] == "agent"
     assert sent["to_handle"] == "+39"
     assert sent["body"] == "hello there"
 
@@ -109,7 +109,7 @@ async def test_create_draft_non_201_raises() -> None:
 
     async with _bridge_with(_h) as bc:
         with pytest.raises(AgentError) as excinfo:
-            await create_draft(bc, agent="clu", to_handle="+39", body="x")
+            await create_draft(bc, agent="agent", to_handle="+39", body="x")
     assert excinfo.value.status == 502
     assert excinfo.value.code == "dependency_unavailable"
 
@@ -129,11 +129,11 @@ async def test_list_drafts_filters_propagated() -> None:
         )
 
     async with _bridge_with(_h) as bc:
-        drafts = await list_drafts(bc, agent="clu", status="pending", limit=10)
+        drafts = await list_drafts(bc, agent="agent", status="pending", limit=10)
     assert len(drafts) == 1
     assert drafts[0].draft_id == "d1"
     params = captured["params"]
-    assert "agent=clu" in params
+    assert "agent=agent" in params
     assert "status=pending" in params
     assert "limit=10" in params
 

@@ -5,7 +5,7 @@ requires-python = "==3.13.*"
 [manifest]
 members = [
     "openclaw",
-    "openclaw-brain-clu",
+    "openclaw-brain-agent",
     "openclaw-brains-shared",
     "openclaw-bridge",
     "openclaw-relay-imessage",
@@ -488,7 +488,7 @@ name = "openclaw"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "openclaw-brain-clu" },
+    { name = "openclaw-brain-agent" },
     { name = "openclaw-brains-shared" },
     { name = "openclaw-bridge" },
     { name = "openclaw-relay-imessage" },
@@ -509,7 +509,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "openclaw-brain-clu", editable = "brains/clu" },
+    { name = "openclaw-brain-agent", editable = "brains/agent" },
     { name = "openclaw-brains-shared", editable = "brains/shared" },
     { name = "openclaw-bridge", editable = "bridge" },
     { name = "openclaw-relay-imessage", editable = "relays/imessage" },
@@ -529,9 +529,9 @@ dev = [
 ]
 
 [[package]]
-name = "openclaw-brain-clu"
+name = "openclaw-brain-agent"
 version = "0.1.0"
-source = { editable = "brains/clu" }
+source = { editable = "brains/agent" }
 dependencies = [
     { name = "openclaw-brains-shared" },
 ]

@@ -121,8 +121,8 @@ def tokens(fake_keychain: FakeKeyring) -> list[TokenFixture]:
     _ = fake_keychain
     fixtures = [
         TokenFixture(
-            plain="dev-token-clu",
-            actor="brain.clu",
+            plain="dev-token-agent",
+            actor="brain.agent",
             scopes=("llm:call", "vault:read", "vault:write"),
         ),
         TokenFixture(
@@ -148,12 +148,12 @@ def tokens(fake_keychain: FakeKeyring) -> list[TokenFixture]:
         ),
         TokenFixture(
             plain="dev-token-imessage-relay",
-            actor="relay.clu",
+            actor="relay.account",
             scopes=("imessage:relay",),
         ),
         TokenFixture(
             plain="dev-token-agent-write",
-            actor="brain.clu-write-only",
+            actor="brain.agent_write_only",
             scopes=("agent:drafts:write",),
         ),
         TokenFixture(
@@ -163,7 +163,7 @@ def tokens(fake_keychain: FakeKeyring) -> list[TokenFixture]:
         ),
         TokenFixture(
             plain="dev-token-agent-approve",
-            actor="cli.giuseppelopes",
+            actor="cli.operator",
             scopes=("agent:drafts:read", "agent:drafts:approve"),
         ),
         TokenFixture(plain="dev-token-empty", actor="cli.test", scopes=()),

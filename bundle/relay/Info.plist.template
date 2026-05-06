@@ -10,7 +10,7 @@
     <string>OpenClaw Relay</string>
 
     <key>CFBundleIdentifier</key>
-    <string>com.giuseppelopesme.openclaw.relay.clu</string>
+    <string>me.lopes.openclaw.relay</string>
 
     <key>CFBundleExecutable</key>
     <string>OpenClawRelay</string>

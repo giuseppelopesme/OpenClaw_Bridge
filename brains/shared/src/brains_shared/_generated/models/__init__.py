@@ -24,7 +24,6 @@ from .deps_redis import DepsRedis
 from .deps_telemetry_db import DepsTelemetryDb
 from .deps_vault import DepsVault
 from .draft_create_request import DraftCreateRequest
-from .draft_create_request_agent import DraftCreateRequestAgent
 from .draft_create_request_channel import DraftCreateRequestChannel
 from .draft_list_response import DraftListResponse
 from .draft_out import DraftOut
@@ -42,17 +41,12 @@ from .health_response import HealthResponse
 from .health_response_status import HealthResponseStatus
 from .http_validation_error import HTTPValidationError
 from .i_message_inbound_request import IMessageInboundRequest
-from .i_message_inbound_request_agent import IMessageInboundRequestAgent
 from .i_message_inbound_response import IMessageInboundResponse
 from .i_message_send_request import IMessageSendRequest
-from .i_message_send_request_from import IMessageSendRequestFrom
 from .i_message_send_request_service import IMessageSendRequestService
 from .i_message_sent_request import IMessageSentRequest
-from .i_message_sent_request_agent import IMessageSentRequestAgent
 from .i_message_sent_request_status import IMessageSentRequestStatus
 from .i_message_sent_response import IMessageSentResponse
-from .imessage_outbox_v1_imessage_outbox_get_agent import ImessageOutboxV1ImessageOutboxGetAgent
-from .list_drafts_v1_agent_drafts_get_agent_type_0 import ListDraftsV1AgentDraftsGetAgentType0
 from .list_drafts_v1_agent_drafts_get_status_type_0 import ListDraftsV1AgentDraftsGetStatusType0
 from .list_threads_v1_email_threads_get_account import ListThreadsV1EmailThreadsGetAccount
 from .llm_complete_request import LLMCompleteRequest
@@ -105,7 +99,6 @@ __all__ = (
     "DepsTelemetryDb",
     "DepsVault",
     "DraftCreateRequest",
-    "DraftCreateRequestAgent",
     "DraftCreateRequestChannel",
     "DraftListResponse",
     "DraftOut",
@@ -123,17 +116,12 @@ __all__ = (
     "HealthResponseStatus",
     "HTTPValidationError",
     "IMessageInboundRequest",
-    "IMessageInboundRequestAgent",
     "IMessageInboundResponse",
-    "ImessageOutboxV1ImessageOutboxGetAgent",
     "IMessageSendRequest",
-    "IMessageSendRequestFrom",
     "IMessageSendRequestService",
     "IMessageSentRequest",
-    "IMessageSentRequestAgent",
     "IMessageSentRequestStatus",
     "IMessageSentResponse",
-    "ListDraftsV1AgentDraftsGetAgentType0",
     "ListDraftsV1AgentDraftsGetStatusType0",
     "ListThreadsV1EmailThreadsGetAccount",
     "LLMCompleteRequest",
