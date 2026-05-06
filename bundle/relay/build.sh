@@ -111,6 +111,15 @@ cp "${bundle_dir}/launchagent.plist.template" \
     "${app_path}/Contents/Library/LaunchAgents/me.lopes.openclaw.relay.plist"
 plutil -lint "${app_path}/Contents/Library/LaunchAgents/me.lopes.openclaw.relay.plist"
 
+echo "==> bundling AppIcon.icns into Contents/Resources/"
+icns_path="${repo_root}/assets/icons/build/Relay.icns"
+if [[ ! -f "${icns_path}" ]]; then
+    echo "    Relay.icns not found — running scripts/build-icons.sh"
+    "${repo_root}/scripts/build-icons.sh"
+fi
+mkdir -p "${app_path}/Contents/Resources"
+cp "${icns_path}" "${app_path}/Contents/Resources/AppIcon.icns"
+
 # ---- codesign --------------------------------------------------------
 
 echo "==> codesigning (Developer ID, hardened runtime, entitlements)"

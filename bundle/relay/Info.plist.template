@@ -27,6 +27,11 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
 
+    <!-- AppIcon.icns ships in Contents/Resources/ (see bundle/relay/build.sh).
+         Surfaces in Finder, Activity Monitor, and the installer .pkg. -->
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+
     <!-- Background app: no Dock icon, no menu bar entry. The relay is a
          daemon-shaped process with no UI; LSUIElement keeps it out of
          the user's view while still letting macOS attribute Automation
